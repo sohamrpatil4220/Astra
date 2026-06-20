@@ -39,6 +39,10 @@
             <span class="pulse-dot"></span>
             Testnet
           </div>
+          <select id="wallet-type-select" class="minimal-select header-wallet-select">
+            <option value="freighter">Freighter Wallet</option>
+            <option value="albedo">Albedo Wallet</option>
+          </select>
           <button id="connect-btn" class="btn btn-connect">
             <span id="connect-btn-text">Connect Wallet</span>
           </button>
@@ -165,6 +169,7 @@
                 <div class="tab-header">
                   <button class="tab-btn active" data-tab="single-panel">Single Transfer</button>
                   <button class="tab-btn" data-tab="split-panel">Split Bill</button>
+                  <button class="tab-btn" data-tab="contract-panel">Contract Portal</button>
                 </div>
               </div>
               
@@ -246,6 +251,31 @@
                       Execute Split Payments
                     </button>
                   </form>
+                </div>
+                
+                <!-- Panel 3: Soroban Smart Contract Portal -->
+                <div id="contract-panel" class="tab-panel hidden">
+                  <form id="contract-form" autocomplete="off">
+                    <p class="section-subtext">Call the deployed hello-world contract (ID: <span class="font-mono text-primary select-all">CCMXLVDPY6IBFRHCYDTRAVKOVL4Z4RBL32SBDVYLYNRVRRGUYTVMMDM6</span>) on the Stellar Testnet.</p>
+                    
+                    <div class="form-group">
+                      <label for="contract-to-input">Greeting Name (to)</label>
+                      <input type="text" id="contract-to-input" placeholder="e.g. World" required />
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <button type="submit" id="contract-submit-btn" class="btn btn-primary btn-full">
+                      Invoke hello() Function
+                    </button>
+                  </form>
+                  
+                  <div id="contract-result-box" class="tx-hash-box hidden" style="margin-top: 15px;">
+                    <span class="hash-label">Contract Return Value</span>
+                    <div class="hash-value-row">
+                      <span id="contract-result-val" class="hash-text text-success" style="font-family: var(--font-mono); font-size: 0.95rem;">[]</span>
+                    </div>
+                  </div>
                 </div>
 
               </div>

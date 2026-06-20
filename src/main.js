@@ -1,6 +1,7 @@
 import './style.css';
 import { isConnected, requestAccess, getPublicKey, signTransaction } from '@stellar/freighter-api';
-import { Horizon, TransactionBuilder, Networks, Operation, Asset, Keypair, Memo, StrKey } from '@stellar/stellar-sdk';
+import { Horizon, TransactionBuilder, Networks, Operation, Asset, Keypair, Memo, StrKey, rpc, Contract, xdr, scValToNative } from '@stellar/stellar-sdk';
+import albedo from '@albedo-link/intent';
 
 // Robust Stellar address validator — falls back to regex if StrKey throws
 function isValidStellarAddress(address) {
@@ -26,6 +27,9 @@ let watchlist = [];
 let recentPayments = [];
 let paymentStreamCloser = null;
 let splitRecipients = [];
+let activeWallet = 'freighter';
+const CONTRACT_ID = 'CCMXLVDPY6IBFRHCYDTRAVKOVL4Z4RBL32SBDVYLYNRVRRGUYTVMMDM6';
+const rpcServer = new rpc.Server('https://soroban-testnet.stellar.org');
 
 // DOM Elements - Header & Layout
 const connectBtn = document.getElementById('connect-btn');
@@ -110,6 +114,14 @@ const insAmount = document.getElementById('ins-amount');
 const insMemo = document.getElementById('ins-memo');
 const insExplorerBtn = document.getElementById('ins-explorer-btn');
 
+// DOM Elements - Smart Contract Portal
+const walletTypeSelect = document.getElementById('wallet-type-select');
+const contractForm = document.getElementById('contract-form');
+const contractToInput = document.getElementById('contract-to-input');
+const contractSubmitBtn = document.getElementById('contract-submit-btn');
+const contractResultBox = document.getElementById('contract-result-box');
+const contractResultVal = document.getElementById('contract-result-val');
+
 // ==========================================
 // Promise Timeout Helper (Fixes Frozen Buttons)
 // ==========================================
@@ -137,6 +149,10 @@ window.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('astra_stellar_address', 'GAJAQYICN3HOMRDBZN77ETZBKCHYRGO5XJKKSG6UEFT5H2GH7QJ63JHX');
   }
 
+  // Load wallet type preference
+  activeWallet = localStorage.getItem('astra_active_wallet') || 'freighter';
+  walletTypeSelect.value = activeWallet;
+
   // Load session from localStorage
   const savedAddress = localStorage.getItem('astra_stellar_address');
   if (savedAddress && isValidStellarAddress(savedAddress)) {
@@ -151,6 +167,10 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Setup Event Listeners
   connectBtn.addEventListener('click', handleConnectToggle);
+  walletTypeSelect.addEventListener('change', (e) => {
+    activeWallet = e.target.value;
+    localStorage.setItem('astra_active_wallet', activeWallet);
+  });
   refreshBalanceBtn.addEventListener('click', () => {
     animateRefreshIcon();
     fetchAccountData();
@@ -178,6 +198,7 @@ window.addEventListener('DOMContentLoaded', () => {
   sendForm.addEventListener('submit', handleSendPayment);
   splitForm.addEventListener('submit', handleSendSplitPayments);
   watchlistForm.addEventListener('submit', handleAddWatchlist);
+  contractForm.addEventListener('submit', handleInvokeContract);
 
   // Close triggers
   modalCloseBtn.addEventListener('click', hideModal);
@@ -200,82 +221,91 @@ async function handleConnectToggle() {
     connectBtnText.textContent = 'Connecting...';
 
     try {
-      // ── Step 1: Verify Freighter extension is present ──────────────────────
-      let freighterInstalled = false;
-      try {
-        const connResult = await withTimeout(isConnected(), 4000, 'timeout');
-        // isConnected() resolving at all means the extension exists.
-        // It returns true/false for whether the user has already granted access.
-        freighterInstalled = true;
-        console.log('[Freighter] isConnected result:', connResult);
-      } catch (e) {
-        // Falls through to window-global check
-        freighterInstalled = !!(window.freighter || window.freighterApi || window.stellar);
-        console.log('[Freighter] isConnected threw, window check:', freighterInstalled);
-      }
+      if (activeWallet === 'freighter') {
+        // ── Step 1: Verify Freighter extension is present ──────────────────────
+        let freighterInstalled = false;
+        try {
+          const connResult = await withTimeout(isConnected(), 4000, 'timeout');
+          freighterInstalled = true;
+          console.log('[Freighter] isConnected result:', connResult);
+        } catch (e) {
+          freighterInstalled = !!(window.freighter || window.freighterApi || window.stellar);
+          console.log('[Freighter] isConnected threw, window check:', freighterInstalled);
+        }
 
-      if (!freighterInstalled) {
-        throw new Error('FREIGHTER_NOT_INSTALLED');
-      }
+        if (!freighterInstalled) {
+          throw new Error('FREIGHTER_NOT_INSTALLED');
+        }
 
-      // ── Step 2: Request access (shows Freighter permission popup) ──────────
-      // In Freighter API v6+, requestAccess() only GRANTS permission.
-      // It does NOT reliably return the public key anymore.
-      connectBtnText.textContent = 'Approve in Freighter...';
-      const accessResult = await withTimeout(
-        requestAccess(),
-        20000,
-        'Freighter permission popup timed out. Please try again.'
-      );
-      console.log('[Freighter] requestAccess result:', accessResult, typeof accessResult);
-
-      // Check if access was explicitly denied via error object
-      if (accessResult && accessResult.error) {
-        const errMsg = (accessResult.error.message) || String(accessResult.error);
-        throw new Error(errMsg || 'Access denied by Freighter.');
-      }
-
-      // ── Step 3: Get the public key (works in both old and new API) ──────────
-      // First try extracting the address from the accessResult itself (old API)
-      let address = null;
-      if (typeof accessResult === 'string' && accessResult.length > 10) {
-        address = accessResult;  // Old API: requestAccess() returned the key directly
-      } else if (accessResult && typeof accessResult.address === 'string') {
-        address = accessResult.address;
-      }
-
-      // If we still don't have the address, call getPublicKey() (v6 pattern)
-      if (!address) {
-        connectBtnText.textContent = 'Getting address...';
-        const pkResult = await withTimeout(
-          getPublicKey(),
-          8000,
-          'Could not retrieve public key from Freighter.'
+        // ── Step 2: Request access (shows Freighter permission popup) ──────────
+        connectBtnText.textContent = 'Approve in Freighter...';
+        const accessResult = await withTimeout(
+          requestAccess(),
+          20000,
+          'Freighter permission popup timed out. Please try again.'
         );
-        console.log('[Freighter] getPublicKey result:', pkResult, typeof pkResult);
+        console.log('[Freighter] requestAccess result:', accessResult, typeof accessResult);
 
-        if (typeof pkResult === 'string' && pkResult.length > 10) {
-          address = pkResult;
-        } else if (pkResult && typeof pkResult.publicKey === 'string') {
-          address = pkResult.publicKey;
-        } else if (pkResult && typeof pkResult.address === 'string') {
-          address = pkResult.address;
-        } else if (pkResult && pkResult.error) {
-          throw new Error(String(pkResult.error.message || pkResult.error));
+        // Check if access was explicitly denied via error object
+        if (accessResult && accessResult.error) {
+          const errMsg = (accessResult.error.message) || String(accessResult.error);
+          throw new Error(errMsg || 'Access denied by Freighter.');
+        }
+
+        // ── Step 3: Get the public key ─────────────────────────────────────────
+        let address = null;
+        if (typeof accessResult === 'string' && accessResult.length > 10) {
+          address = accessResult;
+        } else if (accessResult && typeof accessResult.address === 'string') {
+          address = accessResult.address;
+        }
+
+        if (!address) {
+          connectBtnText.textContent = 'Getting address...';
+          const pkResult = await withTimeout(
+            getPublicKey(),
+            8000,
+            'Could not retrieve public key from Freighter.'
+          );
+          console.log('[Freighter] getPublicKey result:', pkResult, typeof pkResult);
+
+          if (typeof pkResult === 'string' && pkResult.length > 10) {
+            address = pkResult;
+          } else if (pkResult && typeof pkResult.publicKey === 'string') {
+            address = pkResult.publicKey;
+          } else if (pkResult && typeof pkResult.address === 'string') {
+            address = pkResult.address;
+          } else if (pkResult && pkResult.error) {
+            throw new Error(String(pkResult.error.message || pkResult.error));
+          }
+        }
+
+        // ── Step 4: Validate and log in ────────────────────────────────────────
+        if (address && isValidStellarAddress(address)) {
+          loginUser(address);
+        } else if (address) {
+          throw new Error(`Invalid Stellar address received: "${address}". Is Freighter on the right network?`);
+        } else {
+          throw new Error('Could not retrieve your public key. Please make sure Freighter is unlocked and you approved the connection.');
+        }
+      } else {
+        // Albedo Connection Flow
+        connectBtnText.textContent = 'Approve in Albedo...';
+        const albedoRes = await withTimeout(
+          albedo.publicKey({ token: 'astra_login' }),
+          25000,
+          'Albedo connection request timed out.'
+        );
+        console.log('[Albedo] connection result:', albedoRes);
+        if (albedoRes && albedoRes.pubkey && isValidStellarAddress(albedoRes.pubkey)) {
+          loginUser(albedoRes.pubkey);
+        } else {
+          throw new Error('Albedo connection failed to retrieve public key.');
         }
       }
 
-      // ── Step 4: Validate and log in ────────────────────────────────────────
-      if (address && isValidStellarAddress(address)) {
-        loginUser(address);
-      } else if (address) {
-        throw new Error(`Invalid Stellar address received: "${address}". Is Freighter on the right network?`);
-      } else {
-        throw new Error('Could not retrieve your public key. Please make sure Freighter is unlocked and you approved the connection.');
-      }
-
     } catch (err) {
-      console.error('[Freighter] Connection failed:', err);
+      console.error('Connection failed:', err);
       if (err.message === 'FREIGHTER_NOT_INSTALLED') {
         alert('Freighter wallet not detected.\n\nPlease:\n1. Install Freighter from freighter.app\n2. Make sure it is enabled in Chrome extensions\n3. Reload this page and try again');
       } else {
@@ -337,6 +367,39 @@ function logoutUser() {
   historyEmpty.classList.remove('hidden');
   resetSendForm();
   resetSplitForm();
+}
+
+async function signTxEnvelope(xdr) {
+  if (activeWallet === 'freighter') {
+    const result = await withTimeout(
+      signTransaction(xdr, { networkPassphrase: Networks.TESTNET }),
+      20000,
+      'Freighter signature request timed out. Please unlock Freighter and try again.'
+    );
+    let signedXdr = null;
+    if (typeof result === 'string') {
+      signedXdr = result;
+    } else if (result && result.signedTxXdr) {
+      signedXdr = result.signedTxXdr;
+    } else if (result && result.error) {
+      throw new Error(`Signing failed: ${result.error.message || result.error}`);
+    } else {
+      throw new Error('Transaction signing declined by user.');
+    }
+    return signedXdr;
+  } else {
+    // Albedo Flow
+    const result = await withTimeout(
+      albedo.tx({ xdr, network: 'testnet' }),
+      25000,
+      'Albedo signing request timed out.'
+    );
+    if (result && result.signed_envelope_xdr) {
+      return result.signed_envelope_xdr;
+    } else {
+      throw new Error('Transaction signing declined by user.');
+    }
+  }
 }
 
 async function handleCopyAddress() {
@@ -802,25 +865,9 @@ async function handleSendPayment(e) {
 
     updateStepperState(1, 'completed');
     updateStepperState(2, 'active');
-    modalStatusText.textContent = 'Awaiting signature from Freighter. Please approve in extension...';
+    modalStatusText.textContent = `Awaiting signature from ${activeWallet === 'freighter' ? 'Freighter' : 'Albedo'}...`;
 
-    // Request Freighter signature — pass full testnet passphrase for Freighter v6
-    const result = await withTimeout(
-      signTransaction(xdr, { networkPassphrase: Networks.TESTNET }),
-      15000,
-      'Freighter signature request timed out. Please unlock Freighter and try again.'
-    );
-
-    let signedXdr = null;
-    if (typeof result === 'string') {
-      signedXdr = result;
-    } else if (result && result.signedTxXdr) {
-      signedXdr = result.signedTxXdr;
-    } else if (result && result.error) {
-      throw new Error(`Signing failed: ${result.error.message || result.error}`);
-    } else {
-      throw new Error('Transaction signing declined by user.');
-    }
+    const signedXdr = await signTxEnvelope(xdr);
 
     updateStepperState(2, 'completed');
     updateStepperState(3, 'active');
@@ -1020,25 +1067,9 @@ async function handleSendSplitPayments(e) {
 
     updateStepperState(1, 'completed');
     updateStepperState(2, 'active');
-    modalStatusText.textContent = `Awaiting Freighter multi-payment signature for ${recipients.length} operations...`;
+    modalStatusText.textContent = `Awaiting signature from ${activeWallet === 'freighter' ? 'Freighter' : 'Albedo'}...`;
 
-    // Request signature — pass full testnet passphrase for Freighter v6
-    const result = await withTimeout(
-      signTransaction(xdr, { networkPassphrase: Networks.TESTNET }),
-      15000,
-      'Freighter signature request timed out. Please check the extension.'
-    );
-
-    let signedXdr = null;
-    if (typeof result === 'string') {
-      signedXdr = result;
-    } else if (result && result.signedTxXdr) {
-      signedXdr = result.signedTxXdr;
-    } else if (result && result.error) {
-      throw new Error(`Signing failed: ${result.error.message || result.error}`);
-    } else {
-      throw new Error('Transaction signing declined by user.');
-    }
+    const signedXdr = await signTxEnvelope(xdr);
 
     updateStepperState(2, 'completed');
     updateStepperState(3, 'active');
