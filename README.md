@@ -1,24 +1,24 @@
-# ▲ ASTRA — Stellar Testnet Wallet Dashboard
+# ASTRA — Stellar Testnet Wallet Dashboard
 
 A clean, minimal, and fully functional **Stellar Testnet** wallet dashboard built with Vite + Vanilla JS. Connect your Freighter wallet, view your XLM balance, monitor watched accounts, and send real on-chain testnet transactions — all from one sleek interface.
 
 ---
 
-## ✨ Features
+## Features
 
-- 🔗 **One-click Wallet Connect** via [Freighter](https://freighter.app) browser extension
-- 💰 **Live XLM Balance** — auto-refreshes every 10 seconds with animated counter
-- 📤 **Single Transfer** — send XLM to any Stellar address with optional TEXT / ID memo
-- 🧾 **Split Bill Calculator** — divide a bill among multiple recipients in one multi-op transaction
-- 👁️ **Account Watchlist** — monitor any Stellar address balance, persisted in localStorage
-- 📜 **Recent Payments Feed** — real-time streaming of incoming & outgoing transactions
-- 🔍 **Transaction Inspector Drawer** — view memo, fee, ledger sequence for any payment
-- 🚰 **Friendbot Faucet** — one-click fund your account with 10,000 testnet XLM
-- 🌐 **StellarExpert Links** — every transaction links directly to the block explorer
+- **One-click Wallet Connect** via [Freighter](https://freighter.app) browser extension
+- **Live XLM Balance** — auto-refreshes every 10 seconds with animated counter
+- **Single Transfer** — send XLM to any Stellar address with optional TEXT / ID memo
+- **Split Bill Calculator** — divide a bill among multiple recipients in one multi-op transaction
+- **Account Watchlist** — monitor any Stellar address balance, persisted in localStorage
+- **Recent Payments Feed** — real-time streaming of incoming & outgoing transactions
+- **Transaction Inspector Drawer** — view memo, fee, ledger sequence for any payment
+- **Friendbot Faucet** — one-click fund your account with 10,000 testnet XLM
+- **StellarExpert Links** — every transaction links directly to the block explorer
 
 ---
 
-## 🖥️ Screenshots
+## Screenshots
 
 ### 1. Landing Page — Connect Your Wallet
 > Clean disconnected state prompting you to connect the Freighter extension.
@@ -55,7 +55,7 @@ A clean, minimal, and fully functional **Stellar Testnet** wallet dashboard buil
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Layer | Technology |
 |---|---|
@@ -68,7 +68,7 @@ A clean, minimal, and fully functional **Stellar Testnet** wallet dashboard buil
 
 ---
 
-## 🚀 Setup — Run Locally
+## Setup — Run Locally
 
 ### Prerequisites
 - [Node.js](https://nodejs.org) v18 or higher
@@ -108,7 +108,7 @@ http://localhost:5173
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 Astra/
@@ -125,7 +125,7 @@ Astra/
 
 ---
 
-## ⚠️ Notes
+## Notes
 
 - This app runs **exclusively on the Stellar Testnet** — no real funds are used
 - Your wallet session is saved in `localStorage` so you stay connected on reload
@@ -133,6 +133,6 @@ Astra/
 
 ---
 
-## 📄 License
+## License
 
 MIT — free to use, fork, and build upon.
