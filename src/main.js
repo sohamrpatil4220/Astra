@@ -122,6 +122,14 @@ const contractSubmitBtn = document.getElementById('contract-submit-btn');
 const contractResultBox = document.getElementById('contract-result-box');
 const contractResultVal = document.getElementById('contract-result-val');
 
+// DOM Elements - Assets & Trustlines
+const trustlineForm = document.getElementById('trustline-form');
+const trustAssetCode = document.getElementById('trust-asset-code');
+const trustAssetIssuer = document.getElementById('trust-asset-issuer');
+const trustSubmitBtn = document.getElementById('trust-submit-btn');
+const assetList = document.getElementById('asset-list');
+let portfolioChartInstance = null;
+
 // ==========================================
 // Freighter Testnet Network Guard
 // ==========================================
@@ -237,6 +245,7 @@ window.addEventListener('DOMContentLoaded', () => {
   splitForm.addEventListener('submit', handleSendSplitPayments);
   watchlistForm.addEventListener('submit', handleAddWatchlist);
   contractForm.addEventListener('submit', handleInvokeContract);
+  trustlineForm.addEventListener('submit', handleTrustline);
 
   // Close triggers
   modalCloseBtn.addEventListener('click', hideModal);
@@ -490,10 +499,12 @@ async function fetchAccountData() {
     currentBalance = balanceVal;
 
     animateBalanceDisplay(balanceVal);
+    renderAssetsAndChart(account.balances);
   } catch (err) {
     if (err.name === 'NotFoundError' || (err.response && err.response.status === 404)) {
       currentBalance = 0.0;
       walletBalance.textContent = '0.0000000';
+      renderAssetsAndChart([]);
     } else {
       console.error('Failed to query account balance:', err);
     }
@@ -502,6 +513,81 @@ async function fetchAccountData() {
   // Load history lists and watchlist balances
   fetchTransactionHistory();
   pollWatchlistBalances();
+}
+
+function renderAssetsAndChart(balances) {
+  assetList.innerHTML = '';
+  
+  if (!balances || balances.length === 0) {
+    assetList.innerHTML = '<li class="events-empty-state">No assets found.</li>';
+    updateChart(['XLM'], [0]);
+    return;
+  }
+
+  const labels = [];
+  const dataPoints = [];
+
+  balances.forEach(b => {
+    const isNative = b.asset_type === 'native';
+    const code = isNative ? 'XLM' : b.asset_code;
+    const balance = parseFloat(b.balance).toFixed(2);
+    
+    labels.push(code);
+    dataPoints.push(balance);
+
+    const li = document.createElement('li');
+    li.className = 'watchlist-item';
+    
+    const issuerInfo = isNative ? 'Native Stellar Network' : `${b.asset_issuer.slice(0, 5)}...${b.asset_issuer.slice(-5)}`;
+    
+    li.innerHTML = `
+      <div class="watchlist-info">
+        <span class="watchlist-label">${code}</span>
+        <span class="watchlist-address">${issuerInfo}</span>
+      </div>
+      <div class="watchlist-actions">
+        <span class="watchlist-balance">${balance}</span>
+      </div>
+    `;
+    assetList.appendChild(li);
+  });
+
+  updateChart(labels, dataPoints);
+}
+
+function updateChart(labels, dataPoints) {
+  const ctx = document.getElementById('portfolioChart');
+  if (!ctx) return;
+  
+  if (portfolioChartInstance) {
+    portfolioChartInstance.data.labels = labels;
+    portfolioChartInstance.data.datasets[0].data = dataPoints;
+    portfolioChartInstance.update();
+  } else {
+    portfolioChartInstance = new window.Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: dataPoints,
+          backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'],
+          borderWidth: 0,
+          hoverOffset: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'right',
+            labels: { color: '#9ca3af', font: { family: "'Inter', sans-serif", size: 10 } }
+          }
+        },
+        cutout: '70%'
+      }
+    });
+  }
 }
 
 async function fetchTransactionHistory() {
@@ -793,7 +879,9 @@ function validateRecipientAddress() {
     return false;
   }
 
-  if (isValidStellarAddress(value)) {
+  const isFederation = value.includes('*') && value.split('*').length === 2;
+
+  if (isValidStellarAddress(value) || isFederation) {
     recipientInput.classList.remove('is-invalid');
     recipientInput.classList.add('is-valid');
     recipientIndicator.innerHTML = `
@@ -871,10 +959,10 @@ function handleSetMaxAmount() {
 async function handleSendPayment(e) {
   e.preventDefault();
 
-  const recipient = recipientInput.value.trim();
+  let recipient = recipientInput.value.trim();
   const amount = amountInput.value.trim();
-  const memoType = memoTypeSelect.value;
-  const memoVal = memoInput.value.trim();
+  let memoType = memoTypeSelect.value;
+  let memoVal = memoInput.value.trim();
 
   if (!validateRecipientAddress() || !validateAmount() || !validateMemo()) {
     alert('Please correct validation errors before sending.');
@@ -886,6 +974,16 @@ async function handleSendPayment(e) {
   modalStatusText.textContent = 'Building Stellar payment operations...';
 
   try {
+    if (recipient.includes('*')) {
+      modalStatusText.textContent = 'Resolving federation address...';
+      const fedResponse = await FederationServer.resolve(recipient);
+      recipient = fedResponse.account_id;
+      if (fedResponse.memo_type && fedResponse.memo) {
+        memoType = fedResponse.memo_type;
+        memoVal = fedResponse.memo;
+      }
+    }
+
     const sourceAccount = await server.loadAccount(userAddress);
     const fee = await server.fetchBaseFee();
 
@@ -1468,4 +1566,59 @@ function showContractError(message) {
   contractResultBox.addEventListener('transitionend', () => {
     contractResultVal.style.color = '';
   }, { once: true });
+}
+
+// ==========================================
+// 14. Trustline / Asset Manager
+// ==========================================
+async function handleTrustline(e) {
+  e.preventDefault();
+  if (!userAddress) {
+    alert('Please connect your wallet first.');
+    return;
+  }
+
+  const assetCode = trustAssetCode.value.trim();
+  const assetIssuer = trustAssetIssuer.value.trim();
+
+  if (!assetCode || !isValidStellarAddress(assetIssuer)) {
+    alert('Invalid asset code or issuer address.');
+    return;
+  }
+
+  trustSubmitBtn.disabled = true;
+  trustSubmitBtn.textContent = 'Processing...';
+
+  try {
+    const account = await server.loadAccount(userAddress);
+    const asset = new Asset(assetCode, assetIssuer);
+    const op = Operation.changeTrust({ asset: asset });
+    
+    const tx = new TransactionBuilder(account, {
+      fee: await server.fetchBaseFee(),
+      networkPassphrase: Networks.TESTNET
+    })
+    .addOperation(op)
+    .setTimeout(180)
+    .build();
+
+    showModal('Adding Trustline');
+    
+    const signedXdr = await signTxEnvelope(tx.toXDR());
+    updateModalStep(2);
+
+    const txToSubmit = TransactionBuilder.fromXDR(signedXdr, Networks.TESTNET);
+    const result = await server.submitTransaction(txToSubmit);
+    
+    updateModalStep(3, result.hash);
+    fetchAccountData();
+    trustAssetCode.value = '';
+    trustAssetIssuer.value = '';
+  } catch (err) {
+    console.error('Trustline error:', err);
+    updateModalError(err.message || 'Failed to add trustline');
+  } finally {
+    trustSubmitBtn.disabled = false;
+    trustSubmitBtn.textContent = 'Create Trustline';
+  }
 }

@@ -32,11 +32,19 @@
 
 body {
   font-family: var(--font-sans);
-  background-color: var(--bg-primary);
+  background: linear-gradient(-45deg, #08090c, #12131a, #0a1128, #1c102a);
+  background-size: 400% 400%;
+  animation: gradientBG 15s ease infinite;
   color: var(--text-primary);
   min-height: 100vh;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+}
+
+@keyframes gradientBG {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 /* App Layout */
@@ -192,11 +200,21 @@ body {
   gap: 2rem;
 }
 
-/* Flat Minimal Cards */
+/* Flat Minimal Cards -> Glassmorphism Cards */
 .dash-card {
-  background-color: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
+  background-color: rgba(18, 19, 26, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  transition: transform var(--transition-normal), box-shadow var(--transition-normal), border-color var(--transition-fast);
+}
+
+.dash-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.5);
+  border-color: rgba(59, 130, 246, 0.3);
 }
 
 .card-header {

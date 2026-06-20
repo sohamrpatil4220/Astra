@@ -16,6 +16,9 @@
     
     <!-- Link CSS directly for robust parsing -->
     <link rel="stylesheet" href="/src/style.css" />
+    
+    <!-- Chart.js for Portfolio -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </head>
   <body>
     <!-- App Container -->
@@ -107,13 +110,17 @@
                 </div>
 
                 <div class="balance-display">
-                  <span class="label">Available Balance</span>
+                  <span class="label">Portfolio Value</span>
                   <div class="balance-amount-row">
                     <div class="balance-main">
                       <span id="wallet-balance" class="balance-number">0.00</span>
                       <span class="balance-asset">XLM</span>
                     </div>
                   </div>
+                </div>
+
+                <div class="portfolio-chart-container" style="height: 120px; width: 100%; margin-top: 1rem;">
+                  <canvas id="portfolioChart"></canvas>
                 </div>
 
                 <div class="divider"></div>
@@ -168,8 +175,9 @@
                 <h2>Payment Hub</h2>
                 <div class="tab-header">
                   <button class="tab-btn active" data-tab="single-panel">Single Transfer</button>
-                  <button class="tab-btn" data-tab="split-panel">Split Bill</button>
-                  <button class="tab-btn" data-tab="contract-panel">Contract Portal</button>
+                  <button class="tab-btn" data-tab="split-panel">Split</button>
+                  <button class="tab-btn" data-tab="contract-panel">Contracts</button>
+                  <button class="tab-btn" data-tab="assets-panel">Assets</button>
                 </div>
               </div>
               
@@ -320,6 +328,37 @@
                         <li class="events-empty-state">No events captured yet. Call increment() to emit an event.</li>
                       </ul>
                     </div>
+                  </div>
+                </div>
+
+                <!-- Panel 4: Assets & NFTs -->
+                <div id="assets-panel" class="tab-panel hidden">
+                  <p class="section-subtext">Manage custom Testnet tokens and view your balances.</p>
+                  
+                  <div class="contract-section">
+                    <h3 class="section-title">Add Trustline (Custom Token)</h3>
+                    <form id="trustline-form" autocomplete="off">
+                      <div class="form-group">
+                        <label for="trust-asset-code">Asset Code (e.g. USDC)</label>
+                        <input type="text" id="trust-asset-code" placeholder="USDC" required maxlength="12" />
+                      </div>
+                      <div class="form-group">
+                        <label for="trust-asset-issuer">Issuer Account ID</label>
+                        <input type="text" id="trust-asset-issuer" placeholder="G..." required />
+                      </div>
+                      <button type="submit" id="trust-submit-btn" class="btn btn-secondary btn-full" style="margin-top: 8px;">
+                        Create Trustline
+                      </button>
+                    </form>
+                  </div>
+
+                  <div class="divider"></div>
+
+                  <div class="contract-section">
+                    <h3 class="section-title">Your Assets</h3>
+                    <ul id="asset-list" class="watchlist-list" style="max-height: 150px; overflow-y: auto;">
+                      <li class="events-empty-state">Loading assets...</li>
+                    </ul>
                   </div>
                 </div>
 
