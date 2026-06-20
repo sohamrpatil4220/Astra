@@ -1259,3 +1259,166 @@ function resetSplitForm() {
   splitShareVal.textContent = '0.0000000 XLM';
   splitSharesCount.textContent = '1';
 }
+
+// ==========================================
+// 13. Soroban Smart Contract Invocation
+// ==========================================
+// Error Types Handled:
+//   Type 1 — Wallet not connected (guard clause at the top)
+//   Type 2 — User rejects signing in wallet (caught in signTxEnvelope)
+//   Type 3 — Simulation or execution failure (caught in try/catch)
+async function handleInvokeContract(e) {
+  e.preventDefault();
+
+  // ── Error Type 1: Wallet not connected ─────────────────────────────────────
+  if (!userAddress) {
+    showContractError('Wallet not connected. Please connect your wallet before invoking a contract.');
+    return;
+  }
+
+  const toName = contractToInput.value.trim();
+  if (!toName) {
+    showContractError('Please enter a name to greet.');
+    return;
+  }
+
+  // Reset result box
+  contractResultBox.classList.add('hidden');
+  contractSubmitBtn.disabled = true;
+  contractSubmitBtn.textContent = 'Building transaction...';
+
+  try {
+    // ── Step 1: Build the contract call operation ──────────────────────────
+    const contract = new Contract(CONTRACT_ID);
+
+    // Build ScVal argument for the "to" parameter
+    const toArg = xdr.ScVal.scvString(toName);
+
+    // Load the source account
+    const sourceAccount = await server.loadAccount(userAddress);
+
+    const tx = new TransactionBuilder(sourceAccount, {
+      fee: '100',
+      networkPassphrase: Networks.TESTNET,
+    })
+      .addOperation(contract.call('hello', toArg))
+      .setTimeout(60)
+      .build();
+
+    // ── Step 2: Simulate the transaction via Soroban RPC ──────────────────
+    contractSubmitBtn.textContent = 'Simulating on testnet...';
+    let simResponse;
+    try {
+      simResponse = await withTimeout(
+        rpcServer.simulateTransaction(tx),
+        20000,
+        'Soroban simulation timed out. The RPC endpoint may be busy.'
+      );
+    } catch (simErr) {
+      // ── Error Type 3a: Simulation failure ────────────────────────────────
+      throw new Error(`Simulation failed: ${simErr.message || simErr}`);
+    }
+
+    // Check for simulation errors returned in the result envelope
+    if (rpc.Api.isSimulationError(simResponse)) {
+      // ── Error Type 3b: Contract simulation returned an error ─────────────
+      const simErrText = simResponse.error || 'Unknown simulation error';
+      throw new Error(`Contract simulation error: ${simErrText}`);
+    }
+
+    // ── Step 3: Assemble the authorized transaction ────────────────────────
+    const assembledTx = rpc.assembleTransaction(tx, simResponse).build();
+
+    // ── Step 4: Request wallet signature (may trigger Error Type 2) ────────
+    contractSubmitBtn.textContent = `Awaiting ${activeWallet === 'freighter' ? 'Freighter' : 'Albedo'} signature...`;
+    let signedXdr;
+    try {
+      signedXdr = await signTxEnvelope(assembledTx.toXDR());
+    } catch (sigErr) {
+      // ── Error Type 2: User rejected signing ──────────────────────────────
+      const msg = sigErr.message || '';
+      if (
+        msg.toLowerCase().includes('declined') ||
+        msg.toLowerCase().includes('rejected') ||
+        msg.toLowerCase().includes('denied') ||
+        msg.toLowerCase().includes('cancel')
+      ) {
+        throw new Error('You declined the signature request. No transaction was sent.');
+      }
+      throw sigErr;
+    }
+
+    // ── Step 5: Submit the signed transaction to the network ───────────────
+    contractSubmitBtn.textContent = 'Submitting to ledger...';
+    const txToSubmit = TransactionBuilder.fromXDR(signedXdr, Networks.TESTNET);
+    let submitResult;
+    try {
+      submitResult = await withTimeout(
+        server.submitTransaction(txToSubmit),
+        30000,
+        'Transaction submission timed out.'
+      );
+    } catch (subErr) {
+      // ── Error Type 3c: Submission / execution failure ────────────────────
+      let subErrText = subErr.message || subErr.toString();
+      if (subErr.response && subErr.response.data && subErr.response.data.extras) {
+        const code = subErr.response.data.extras.result_codes;
+        subErrText += ` (code: ${JSON.stringify(code)})`;
+      }
+      throw new Error(`Submission failed: ${subErrText}`);
+    }
+
+    // ── Step 6: Parse the return value from simulation result ──────────────
+    let returnDisplay = '[]';
+    try {
+      if (simResponse.result && simResponse.result.retval) {
+        const native = scValToNative(simResponse.result.retval);
+        returnDisplay = JSON.stringify(native);
+      }
+    } catch (_) {
+      returnDisplay = '[result parsed]';
+    }
+
+    // ── Step 7: Show results ───────────────────────────────────────────────
+    contractResultVal.textContent = returnDisplay;
+    contractResultBox.classList.remove('hidden');
+
+    // Show a success entry in the modal for transaction visibility
+    showModal();
+    updateStepperState(1, 'completed');
+    updateStepperState(2, 'completed');
+    updateStepperState(3, 'completed');
+    updateStepperState(4, 'completed');
+
+    modalSpinner.classList.add('hidden');
+    modalSuccessIcon.classList.remove('hidden');
+    modalTitle.textContent = 'Contract Invoked';
+    modalStatusText.textContent = `hello("${toName}") returned: ${returnDisplay}`;
+
+    modalTxHash.textContent = submitResult.hash;
+    modalExplorerLink.href = `https://stellar.expert/explorer/testnet/tx/${submitResult.hash}`;
+    modalTxHashContainer.classList.remove('hidden');
+
+    modalActionBtn.textContent = 'Done';
+    modalActionBtn.classList.remove('btn-secondary');
+    modalActionBtn.classList.add('btn-primary');
+    modalActionBtn.disabled = false;
+
+  } catch (err) {
+    console.error('Contract invocation failed:', err);
+    showContractError(err.message || err.toString());
+  } finally {
+    contractSubmitBtn.disabled = false;
+    contractSubmitBtn.textContent = 'Invoke hello() Function';
+  }
+}
+
+function showContractError(message) {
+  contractResultVal.textContent = `Error: ${message}`;
+  contractResultVal.style.color = 'var(--color-danger, #ef4444)';
+  contractResultBox.classList.remove('hidden');
+  // Reset color after a new successful call
+  contractResultBox.addEventListener('transitionend', () => {
+    contractResultVal.style.color = '';
+  }, { once: true });
+}
