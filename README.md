@@ -6,7 +6,7 @@ A clean, minimal, and fully functional **Stellar Testnet** wallet dashboard buil
 
 ## Features
 
-### 🌟 New Premium Upgrades
+### New Premium Upgrades
 - **Dynamic Glassmorphism UI**: Beautiful frosted glass cards with 3D hover effects, subtle glowing borders, and an animated gradient mesh background.
 - **Multi-Wallet Support**: Seamlessly connect using either **Freighter** or **Albedo** wallet.
 - **Multi-Asset Manager**: Add trustlines for custom Testnet tokens and automatically detect and manage your entire portfolio.
@@ -15,7 +15,7 @@ A clean, minimal, and fully functional **Stellar Testnet** wallet dashboard buil
 - **Smart Contract Integration**: Invoke Soroban Smart Contracts deployed on the Testnet directly from the UI.
 - **Robust Error Handling**: The app safely handles over 3 major error types: Wallet disconnects, User signature rejections, and Smart Contract execution/simulation failures.
 
-### 💼 Core Functionality
+### Core Functionality
 - **Live XLM Balance** — auto-refreshes with an animated counter.
 - **Single Transfer & Split Bill Calculator** — send XLM to one or multiple recipients in one multi-op transaction.
 - **Account Watchlist** — monitor any Stellar address balance, persisted in localStorage.
