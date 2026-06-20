@@ -1,5 +1,5 @@
 import './style.css';
-import { isConnected, requestAccess, getPublicKey, signTransaction } from '@stellar/freighter-api';
+import { isConnected, requestAccess, getPublicKey, signTransaction, getNetwork } from '@stellar/freighter-api';
 import { Horizon, TransactionBuilder, Networks, Operation, Asset, Keypair, Memo, StrKey, rpc, Contract, xdr, scValToNative } from '@stellar/stellar-sdk';
 import albedo from '@albedo-link/intent';
 
@@ -121,6 +121,44 @@ const contractToInput = document.getElementById('contract-to-input');
 const contractSubmitBtn = document.getElementById('contract-submit-btn');
 const contractResultBox = document.getElementById('contract-result-box');
 const contractResultVal = document.getElementById('contract-result-val');
+
+// ==========================================
+// Freighter Testnet Network Guard
+// ==========================================
+async function checkFreighterNetwork() {
+  try {
+    const networkResult = await withTimeout(getNetwork(), 5000, 'timeout');
+    // getNetwork() returns a string or object depending on version
+    let networkStr = '';
+    if (typeof networkResult === 'string') {
+      networkStr = networkResult;
+    } else if (networkResult && networkResult.network) {
+      networkStr = networkResult.network;
+    } else if (networkResult && networkResult.networkPassphrase) {
+      networkStr = networkResult.networkPassphrase;
+    }
+    // Check if they are on mainnet instead of testnet
+    const isMainnet =
+      networkStr.toLowerCase().includes('mainnet') ||
+      networkStr === Networks.PUBLIC ||
+      networkStr === 'PUBLIC';
+    if (isMainnet) {
+      throw new Error(
+        'WRONG_NETWORK: Freighter is set to Mainnet.\n\n' +
+        'Please switch to Testnet inside Freighter:\n' +
+        '1. Click the Freighter extension icon\n' +
+        '2. Go to Settings → Network\n' +
+        '3. Select "Testnet" and try again.'
+      );
+    }
+  } catch (e) {
+    if (e.message && e.message.startsWith('WRONG_NETWORK:')) {
+      throw e; // re-throw our own error
+    }
+    // If getNetwork() fails (e.g. not connected yet), silently continue
+    console.warn('[Freighter] getNetwork check skipped:', e.message);
+  }
+}
 
 // ==========================================
 // Promise Timeout Helper (Fixes Frozen Buttons)
@@ -280,6 +318,9 @@ async function handleConnectToggle() {
           }
         }
 
+        // ── Step 3.5: Verify Freighter is on Testnet ──────────────────────────
+        await checkFreighterNetwork();
+
         // ── Step 4: Validate and log in ────────────────────────────────────────
         if (address && isValidStellarAddress(address)) {
           loginUser(address);
@@ -306,10 +347,14 @@ async function handleConnectToggle() {
 
     } catch (err) {
       console.error('Connection failed:', err);
-      if (err.message === 'FREIGHTER_NOT_INSTALLED') {
+      const msg = err.message || '';
+      if (msg === 'FREIGHTER_NOT_INSTALLED') {
         alert('Freighter wallet not detected.\n\nPlease:\n1. Install Freighter from freighter.app\n2. Make sure it is enabled in Chrome extensions\n3. Reload this page and try again');
+      } else if (msg.startsWith('WRONG_NETWORK:')) {
+        // Strip the prefix for display
+        alert(msg.replace('WRONG_NETWORK: ', ''));
       } else {
-        alert(`Connection failed: ${err.message}`);
+        alert(`Connection failed: ${msg}`);
       }
       connectBtn.disabled = false;
       connectBtnText.textContent = 'Connect Wallet';
@@ -371,6 +416,8 @@ function logoutUser() {
 
 async function signTxEnvelope(xdr) {
   if (activeWallet === 'freighter') {
+    // Guard: make sure Freighter is still on testnet before signing
+    await checkFreighterNetwork();
     const result = await withTimeout(
       signTransaction(xdr, { networkPassphrase: Networks.TESTNET }),
       20000,
