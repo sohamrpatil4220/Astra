@@ -255,25 +255,70 @@
                 
                 <!-- Panel 3: Soroban Smart Contract Portal -->
                 <div id="contract-panel" class="tab-panel hidden">
-                  <form id="contract-form" autocomplete="off">
-                    <p class="section-subtext">Call the deployed hello-world contract (ID: <span class="font-mono text-primary select-all">CCMXLVDPY6IBFRHCYDTRAVKOVL4Z4RBL32SBDVYLYNRVRRGUYTVMMDM6</span>) on the Stellar Testnet.</p>
-                    
-                    <div class="form-group">
-                      <label for="contract-to-input">Greeting Name (to)</label>
-                      <input type="text" id="contract-to-input" placeholder="e.g. World" required />
-                    </div>
-
-                    <div class="divider"></div>
-
-                    <button type="submit" id="contract-submit-btn" class="btn btn-primary btn-full">
-                      Invoke hello() Function
-                    </button>
-                  </form>
+                  <p class="section-subtext">Interact with the deployed smart contract on Stellar Testnet.</p>
                   
-                  <div id="contract-result-box" class="tx-hash-box hidden" style="margin-top: 15px;">
-                    <span class="hash-label">Contract Return Value</span>
-                    <div class="hash-value-row">
-                      <span id="contract-result-val" class="hash-text text-success" style="font-family: var(--font-mono); font-size: 0.95rem;">[]</span>
+                  <div class="contract-id-banner">
+                    <span class="label">Contract ID</span>
+                    <span class="value font-mono select-all">CCAWAIPBTTQBLKUQW4VT5OBPSZ3GLOS77B3PM4RR4RAJAI7TQOIXZZHR</span>
+                  </div>
+
+                  <!-- Section A: Counter (Read/Write) -->
+                  <div class="contract-section">
+                    <h3 class="section-title">Contract Counter State</h3>
+                    <div class="counter-display-card">
+                      <span class="counter-label">Current Count</span>
+                      <div class="counter-val-row">
+                        <span id="counter-value" class="counter-number">--</span>
+                        <button type="button" id="counter-refresh-btn" class="btn-icon" title="Refresh Count">
+                          <svg class="icon-svg" id="counter-refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l.73-2.19"/>
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    <button type="button" id="counter-increment-btn" class="btn btn-primary btn-full" style="margin-top: 10px;">
+                      Increment Counter (+1)
+                    </button>
+                  </div>
+
+                  <div class="divider"></div>
+
+                  <!-- Section B: Hello World (Read-only) -->
+                  <div class="contract-section">
+                    <h3 class="section-title">Hello Greeting Call</h3>
+                    <form id="contract-form" autocomplete="off">
+                      <div class="form-group">
+                        <label for="contract-to-input">Greeting Name (to)</label>
+                        <input type="text" id="contract-to-input" placeholder="e.g. World" required />
+                      </div>
+                      <button type="submit" id="contract-submit-btn" class="btn btn-secondary btn-full" style="margin-top: 8px;">
+                        Invoke hello() Function
+                      </button>
+                    </form>
+                    
+                    <div id="contract-result-box" class="tx-hash-box hidden" style="margin-top: 10px;">
+                      <span class="hash-label">Contract Return Value</span>
+                      <div class="hash-value-row">
+                        <span id="contract-result-val" class="hash-text text-success" style="font-family: var(--font-mono); font-size: 0.95rem;">[]</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="divider"></div>
+
+                  <!-- Section C: Real-Time Event Log -->
+                  <div class="contract-section">
+                    <div class="label-row-action" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                      <h3 class="section-title">Real-Time Event Listener</h3>
+                      <div class="live-indicator">
+                        <span class="live-dot animate-pulse"></span>
+                        Syncing
+                      </div>
+                    </div>
+                    <div class="events-log-container">
+                      <ul id="contract-events-list" class="events-log-list">
+                        <li class="events-empty-state">No events captured yet. Call increment() to emit an event.</li>
+                      </ul>
                     </div>
                   </div>
                 </div>

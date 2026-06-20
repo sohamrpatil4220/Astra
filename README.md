@@ -55,6 +55,13 @@ A clean, minimal, and fully functional **Stellar Testnet** wallet dashboard buil
 
 ---
 
+### 6. Smart Contract Integration
+> Interact with the Counter smart contract directly from the dashboard, tracking increments and on-chain events.
+
+![Smart Contract Integration](./screenshot/s6.png)
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |
