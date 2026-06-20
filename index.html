@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- SEO Best Practices -->
+    <title>Astra | Minimal Stellar Testnet Wallet Dashboard</title>
+    <meta name="description" content="A minimal, clean dashboard for managing your Stellar Testnet wallet, watching accounts, and sending transactions via Freighter." />
+    
+    <!-- Google Fonts: Inter & JetBrains Mono for a clean developer look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Link CSS directly for robust parsing -->
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <!-- App Container -->
+    <div id="app" class="app-container">
+      
+      <!-- Top Minimal Header -->
+      <header class="app-header">
+        <div class="header-logo">
+          <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M12 2L2 22h20L12 2z" stroke-linejoin="round" />
+            <path d="M12 7l-5 10h10l-5-10z" fill="currentColor" opacity="0.1" />
+          </svg>
+          <div class="logo-text">
+            <h1>ASTRA</h1>
+            <span class="subtext">Stellar Testnet Gateway</span>
+          </div>
+        </div>
+
+        <div class="header-actions">
+          <div class="network-badge">
+            <span class="pulse-dot"></span>
+            Testnet
+          </div>
+          <button id="connect-btn" class="btn btn-connect">
+            <span id="connect-btn-text">Connect Wallet</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Main Dashboard Content -->
+      <main class="dashboard-main">
+        
+        <!-- Disconnected State Banner -->
+        <section id="disconnected-banner" class="banner-card fade-in">
+          <div class="banner-body">
+            <div class="banner-icon-container">
+              <svg class="banner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+            <div class="banner-info">
+              <h2>Connect freighter wallet</h2>
+              <p>To view your XLM balance, add watched accounts, and make transactions, connect your Freighter extension.</p>
+              <div class="banner-action-links">
+                <a href="https://www.freighter.app/" target="_blank" rel="noopener noreferrer" class="link-download">
+                  Get Freighter Wallet &rarr;
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Symmetric Dashboard Grid -->
+        <div id="dashboard-grid" class="dashboard-grid hidden">
+          
+          <!-- Column 1: Account Status & Watchlist -->
+          <div class="grid-column">
+            
+            <!-- Card 1.1: Account Overview -->
+            <section class="dash-card card-account fade-in">
+              <div class="card-header">
+                <h2>Account Status</h2>
+                <button id="refresh-balance-btn" class="btn-icon" title="Refresh Balance">
+                  <svg class="icon-svg" id="refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l.73-2.19"/>
+                  </svg>
+                </button>
+              </div>
+              
+              <div class="card-body">
+                <div class="address-display">
+                  <span class="label">Public Key</span>
+                  <div class="address-box">
+                    <span id="wallet-address-full" class="address-text">G...</span>
+                    <button id="copy-address-btn" class="btn-copy" title="Copy Address">
+                      <svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                      </svg>
+                      <span id="copy-success-tooltip" class="tooltip hidden">Copied!</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="balance-display">
+                  <span class="label">Available Balance</span>
+                  <div class="balance-amount-row">
+                    <div class="balance-main">
+                      <span id="wallet-balance" class="balance-number">0.00</span>
+                      <span class="balance-asset">XLM</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- Testnet Faucet Interface -->
+                <div class="faucet-section">
+                  <button id="faucet-btn" class="btn btn-secondary btn-full">
+                    <span id="faucet-btn-content">Request 10,000 Testnet XLM</span>
+                    <span id="faucet-spinner" class="spinner-container hidden">
+                      <span class="spinner"></span>
+                      Requesting...
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <!-- Card 1.2: Account Watchlist -->
+            <section class="dash-card card-watchlist fade-in">
+              <div class="card-header">
+                <h2>Account Watchlist</h2>
+              </div>
+              <div class="card-body">
+                <p class="section-subtext">Click a watched account to load it directly into your payment forms.</p>
+                <form id="watchlist-form" autocomplete="off" class="minimal-form">
+                  <div class="form-row">
+                    <input type="text" id="watch-label-input" placeholder="Label (e.g. Vault)" required />
+                    <input type="text" id="watch-address-input" placeholder="Stellar Address (G...)" required />
+                    <button type="submit" class="btn btn-primary" title="Add Account">+</button>
+                  </div>
+                </form>
+                
+                <div class="watchlist-container">
+                  <div id="watchlist-empty" class="watchlist-empty-state">
+                    <p>No watched accounts saved. Add an address above to monitor its balance.</p>
+                  </div>
+                  <ul id="watchlist-list" class="watchlist-list">
+                    <!-- Dynamic Watchlist Items -->
+                  </ul>
+                </div>
+              </div>
+            </section>
+
+          </div>
+
+          <!-- Column 2: Payment Hub & History -->
+          <div class="grid-column">
+            
+            <!-- Card 2.1: Payment Hub (Tabbed) -->
+            <section class="dash-card card-payment-hub fade-in">
+              <div class="card-header flex-column-mobile">
+                <h2>Payment Hub</h2>
+                <div class="tab-header">
+                  <button class="tab-btn active" data-tab="single-panel">Single Transfer</button>
+                  <button class="tab-btn" data-tab="split-panel">Split Bill</button>
+                </div>
+              </div>
+              
+              <div class="card-body">
+                
+                <!-- Panel 1: Single Transfer -->
+                <div id="single-panel" class="tab-panel">
+                  <form id="send-form" autocomplete="off">
+                    <div class="form-group">
+                      <label for="recipient-input">Recipient Stellar Address</label>
+                      <div class="input-wrapper">
+                        <input type="text" id="recipient-input" placeholder="Starts with G..." required />
+                        <div id="recipient-validation-indicator" class="input-indicator"></div>
+                      </div>
+                    </div>
+
+                    <div class="form-row">
+                      <div class="form-group width-50">
+                        <label for="amount-input">Amount (XLM)</label>
+                        <div class="input-wrapper">
+                          <input type="number" id="amount-input" placeholder="0.00" step="0.0000001" min="0.0000001" required />
+                          <button type="button" id="amount-max-btn" class="btn-max">MAX</button>
+                        </div>
+                      </div>
+
+                      <div class="form-group width-50">
+                        <label for="memo-type-select">Memo Type</label>
+                        <select id="memo-type-select" class="minimal-select">
+                          <option value="text">TEXT</option>
+                          <option value="id">ID (Numeric)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div class="form-group">
+                      <label for="memo-input">Memo Value</label>
+                      <input type="text" id="memo-input" placeholder="Optional memo value" maxLength="28" />
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <button type="submit" id="send-btn" class="btn btn-primary btn-full">
+                      Send Transaction
+                    </button>
+                  </form>
+                </div>
+
+                <!-- Panel 2: Split Bill Calculator -->
+                <div id="split-panel" class="tab-panel hidden">
+                  <form id="split-form" autocomplete="off">
+                    <p class="section-subtext">Split a bill with friends. Click watched accounts to insert them below.</p>
+                    
+                    <div class="form-group">
+                      <label for="split-total-input">Total Bill Amount (XLM)</label>
+                      <input type="number" id="split-total-input" placeholder="0.00" step="0.0000001" min="0.0000001" required />
+                    </div>
+
+                    <div class="form-group">
+                      <div class="label-row-action">
+                        <label>Split Recipients</label>
+                        <button type="button" id="add-split-recipient-btn" class="btn-link">+ Add Recipient</button>
+                      </div>
+                      <div id="split-recipients-container" class="split-recipients-list">
+                        <!-- Recipient inputs dynamically generated here -->
+                      </div>
+                    </div>
+
+                    <div class="split-breakdown-card">
+                      <div class="breakdown-row">
+                        <span>Calculated Share:</span>
+                        <strong id="split-share-val">0.0000000 XLM</strong>
+                      </div>
+                      <div class="breakdown-sub">
+                        <span>Total shares: </span><span id="split-shares-count">1</span>
+                      </div>
+                    </div>
+
+                    <button type="submit" id="split-submit-btn" class="btn btn-primary btn-full">
+                      Execute Split Payments
+                    </button>
+                  </form>
+                </div>
+
+              </div>
+            </section>
+
+            <!-- Card 2.2: Transaction History -->
+            <section class="dash-card card-history fade-in">
+              <div class="card-header">
+                <div class="header-title-row">
+                  <h2>Recent Payments</h2>
+                  <div class="live-indicator">
+                    <span class="live-dot animate-pulse"></span>
+                    Live Feed
+                  </div>
+                </div>
+              </div>
+              <div class="card-body scrollable-y">
+                <div class="history-table-container">
+                  <table class="history-table">
+                    <thead>
+                      <tr>
+                        <th>Direction</th>
+                        <th>Account</th>
+                        <th>Amount</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tx-history-body">
+                      <!-- History rows will be dynamically injected here -->
+                    </tbody>
+                  </table>
+                </div>
+                <div id="history-empty" class="empty-state">
+                  <p>No recent transactions found on the ledger.</p>
+                </div>
+              </div>
+            </section>
+
+          </div>
+
+        </div>
+      </main>
+
+      <!-- Processing/Signing Modal Overlay -->
+      <div id="status-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3 id="modal-title">Processing</h3>
+            <button id="modal-close-btn" class="modal-close" aria-label="Close modal">&times;</button>
+          </div>
+          
+          <div class="modal-body">
+            
+            <div class="stepper">
+              <div id="step-1" class="step-item">
+                <div class="step-icon">1</div>
+                <div class="step-label">Building</div>
+              </div>
+              <div id="step-2" class="step-item">
+                <div class="step-icon">2</div>
+                <div class="step-label">Signing</div>
+              </div>
+              <div id="step-3" class="step-item">
+                <div class="step-icon">3</div>
+                <div class="step-label">Submitting</div>
+              </div>
+              <div id="step-4" class="step-item">
+                <div class="step-icon">&#10003;</div>
+                <div class="step-label">Complete</div>
+              </div>
+            </div>
+
+            <div class="progress-indicator">
+              <div id="modal-spinner" class="spinner"></div>
+              <div id="modal-success-icon" class="status-icon success-icon hidden">&#10003;</div>
+              <div id="modal-error-icon" class="status-icon error-icon hidden">&times;</div>
+              <p id="modal-status-text">Building transaction...</p>
+            </div>
+
+            <div id="modal-tx-hash-container" class="tx-hash-box hidden">
+              <span class="hash-label">Transaction Hash</span>
+              <div class="hash-value-row">
+                <span id="modal-tx-hash" class="hash-text">0x...</span>
+                <a id="modal-explorer-link" href="#" target="_blank" rel="noopener noreferrer" class="link-download">
+                  StellarExpert &rarr;
+                </a>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="modal-footer">
+            <button id="modal-action-btn" class="btn btn-secondary">Close</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Slide-Out Transaction Inspector Drawer -->
+      <div id="inspector-drawer" class="drawer-overlay hidden">
+        <div class="drawer-content">
+          <div class="drawer-header">
+            <h3>Transaction Inspector</h3>
+            <button id="drawer-close-btn" class="drawer-close">&times;</button>
+          </div>
+          <div class="drawer-body">
+            <div class="inspector-detail-row">
+              <span class="detail-label">Status</span>
+              <span class="detail-val text-success">Successful</span>
+            </div>
+            <div class="inspector-detail-row">
+              <span class="detail-label">Operation Type</span>
+              <span id="ins-type" class="detail-val">Payment</span>
+            </div>
+            <div class="inspector-detail-row">
+              <span class="detail-label">Date / Time</span>
+              <span id="ins-time" class="detail-val">--</span>
+            </div>
+            <div class="inspector-detail-row font-row-full">
+              <span class="detail-label">Transaction Hash</span>
+              <span id="ins-hash" class="detail-val font-mono select-all">--</span>
+            </div>
+            <div class="inspector-detail-row font-row-full">
+              <span class="detail-label">Sender Address</span>
+              <span id="ins-sender" class="detail-val font-mono select-all">--</span>
+            </div>
+            <div class="inspector-detail-row font-row-full">
+              <span class="detail-label">Recipient Address</span>
+              <span id="ins-recipient" class="detail-val font-mono select-all">--</span>
+            </div>
+            <div class="inspector-detail-row">
+              <span class="detail-label">Amount Sent</span>
+              <span id="ins-amount" class="detail-val font-mono font-bold">-- XLM</span>
+            </div>
+            <div class="inspector-detail-row">
+              <span class="detail-label">Memo Value</span>
+              <span id="ins-memo" class="detail-val font-mono">--</span>
+            </div>
+            <div class="inspector-actions">
+              <a id="ins-explorer-btn" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-full">
+                View on StellarExpert
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Minimal Footer -->
+      <footer class="app-footer">
+        <p>Astra Minimalist Gateway &bull; Powered by Stellar Testnet</p>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
