@@ -27,8 +27,8 @@ let recentPayments = [];
 let paymentStreamCloser = null;
 let splitRecipients = [];
 let activeWallet = 'freighter';
-const CONTRACT_ID = 'CCMXLVDPY6IBFRHCYDTRAVKOVL4Z4RBL32SBDVYLYNRVRRGUYTVMMDM6';
-const ESCROW_CONTRACT_ID = null; // Set after deploying escrow contract
+const CONTRACT_ID = 'CC6US3NXL6ZIMH3UPX4ISMPVW4ZXJESQUY5NLTXCGZ234LQJBD6SMHHE';
+const ESCROW_CONTRACT_ID = 'CCZRFJB3S7XTOMTLGWOZ2SDMKI6QUJ6IBIWO53UAMLOOJZ7EO2CVEFLS';
 const rpcServer = new rpc.Server('https://soroban-testnet.stellar.org');
 
 // Event polling state
