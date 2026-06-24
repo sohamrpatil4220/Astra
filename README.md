@@ -2,7 +2,7 @@
 
 > A **production-ready** Stellar Testnet wallet dashboard with advanced Soroban smart contracts, real-time event streaming, CI/CD pipeline, and a fully mobile-responsive glassmorphism UI.
 
-[![CI](https://github.com/sohamrpatil4220/Astra/actions/workflows/ci.yml/badge.svg)](https://github.com/sohamrpatil4220/Astra/actions)
+[![CI](https://github.com/sohamrpatil4220/Astra/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sohamrpatil4220/Astra/actions)
 
 ---
 
