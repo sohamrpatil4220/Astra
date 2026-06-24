@@ -8,9 +8,7 @@ use soroban_sdk::{testutils::Address as _, Address, Env};
 // We import the hello-world contract WASM to register it as a dependency
 // for cross-contract invocation tests.
 mod hello_world {
-    soroban_sdk::contractimport!(
-        file = "../../target/wasm32v1-none/release/hello_world.wasm"
-    );
+    soroban_sdk::contractimport!(file = "../../target/wasm32v1-none/release/hello_world.wasm");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
