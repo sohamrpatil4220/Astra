@@ -1,0 +1,31 @@
+{
+  "networks": {
+    "testnet": {
+      "rpcUrl": "https://soroban-testnet.stellar.org",
+      "horizonUrl": "https://horizon-testnet.stellar.org",
+      "networkPassphrase": "Test SDF Network ; September 2015",
+      "friendbotUrl": "https://friendbot.stellar.org"
+    },
+    "mainnet": {
+      "rpcUrl": "https://soroban-mainnet.stellar.org",
+      "horizonUrl": "https://horizon.stellar.org",
+      "networkPassphrase": "Public Global Stellar Network ; September 2015",
+      "friendbotUrl": null
+    }
+  },
+  "contracts": {
+    "hello-world": {
+      "testnet": "CCMXLVDPY6IBFRHCYDTRAVKOVL4Z4RBL32SBDVYLYNRVRRGUYTVMMDM6",
+      "mainnet": null
+    },
+    "escrow": {
+      "testnet": null,
+      "mainnet": null
+    }
+  },
+  "deployment": {
+    "fee": "100",
+    "timeout": 60,
+    "retryAttempts": 3
+  }
+}

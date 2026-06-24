@@ -1,72 +1,48 @@
 # ASTRA — Stellar Testnet Wallet Dashboard
 
-A clean, minimal, and fully functional **Stellar Testnet** wallet dashboard built with Vite + Vanilla JS. Connect your Freighter or Albedo wallet, view your balances, add custom tokens, send to federated addresses, invoke smart contracts, and send real on-chain testnet transactions — all from one sleek interface.
+> A **production-ready** Stellar Testnet wallet dashboard with advanced Soroban smart contracts, real-time event streaming, CI/CD pipeline, and a fully mobile-responsive glassmorphism UI.
+
+[![CI](https://github.com/sohamrpatil4220/Astra/actions/workflows/ci.yml/badge.svg)](https://github.com/sohamrpatil4220/Astra/actions)
 
 ---
 
 ## Features
 
-### New Premium Upgrades
-- **Dynamic Glassmorphism UI**: Beautiful frosted glass cards with 3D hover effects, subtle glowing borders, and an animated gradient mesh background.
-- **Multi-Wallet Support**: Seamlessly connect using either **Freighter** or **Albedo** wallet.
-- **Multi-Asset Manager**: Add trustlines for custom Testnet tokens and automatically detect and manage your entire portfolio.
-- **Portfolio Value Chart**: A real-time `Chart.js` doughnut chart visualizing your asset distribution.
-- **Federated Address Support**: Send funds directly to human-readable addresses (e.g., `bob*stellar.org`); Astra resolves them under the hood!
-- **Smart Contract Integration**: Invoke Soroban Smart Contracts deployed on the Testnet directly from the UI.
-- **Robust Error Handling**: The app safely handles over 3 major error types: Wallet disconnects, User signature rejections, and Smart Contract execution/simulation failures.
+### Advanced Smart Contracts (Soroban / Rust)
+- **hello-world contract** — 8 functions: `hello`, `increment`, `get_count`, `batch_increment`, `store_message`, `get_message`, `list_messages`, `reset`
+- **escrow contract** — demonstrates **inter-contract communication** (cross-contract calls via `env.invoke_contract`)
+- **Persistent storage** — contract state survives ledger epochs via `instance` storage
+- **Contract Events** — every write function emits a typed event
 
-### Core Functionality
-- **Live XLM Balance** — auto-refreshes with an animated counter.
-- **Single Transfer & Split Bill Calculator** — send XLM to one or multiple recipients in one multi-op transaction.
-- **Account Watchlist** — monitor any Stellar address balance, persisted in localStorage.
-- **Recent Payments Feed** — real-time streaming of incoming & outgoing transactions.
-- **Transaction Inspector Drawer** — view memo, fee, ledger sequence for any payment.
-- **Friendbot Faucet** — one-click fund your account with 10,000 testnet XLM.
-- **StellarExpert Links** — every transaction links directly to the block explorer.
+### Real-Time Event Streaming
+- `pollContractEvents()` uses the Soroban RPC `getEvents` API, polling every 5 seconds
+- Events decoded via `scValToNative()` and displayed with ledger numbers and topic badges
+- Toast notifications on every new event
 
----
+### Smart Contract Deployment Workflow
+- [`deploy.sh`](./contract/deploy.sh) — end-to-end build + deploy script with error handling
+- [`deploy-config.json`](./contract/deploy-config.json) — testnet/mainnet RPC configuration
+- [`Makefile`](./Makefile) — `make deploy-hello-world`, `make deploy-escrow`
 
-## Screenshots
+### CI/CD Pipeline (GitHub Actions)
+- **CI** — Runs on every push/PR: Rust `cargo test`, frontend Vitest tests, and `npm run build`
+- **Deploy** — Pushes to `main` trigger automatic deployment to GitHub Pages
 
-### 1. Landing Page — Connect Your Wallet
-> Clean disconnected state prompting you to connect the Freighter extension.
+### Frontend: Error Handling & Loading States
+- **Toast system** — slide-in notifications (`success`, `error`, `warning`, `info`) with auto-dismiss
+- **Skeleton loading** — animated pulse while fetching contract state
+- **Global error boundary** — catches `unhandledrejection` / `error` events, filters user-cancelled wallet actions
+- **Retry with exponential backoff** — `withRetry(fn, maxAttempts, baseDelayMs)`
 
-![Landing Page](./screenshot/s5.png)
+### Mobile-Responsive Design
+- 4 breakpoints: 860px (1-col grid), 768px (touch targets, table → cards), 480px (condensed), 320px (minimal)
+- Touch-friendly tap targets (44×44px minimum per WCAG 2.1)
+- Toasts slide from bottom on mobile
 
----
-
-### 2. Wallet Connected — Balance Displayed
-> After connecting, your full public key, live XLM balance, Account Watchlist, and Recent Payments are shown.
-
-![Wallet Connected](./screenshot/s4.png)
-
----
-
-### 3. Signing a Testnet Transaction
-> Freighter pops up to confirm the transaction. The app shows a step-by-step progress modal (Building → Signing → Submitting → Complete).
-
-![Freighter Signing](./screenshot/s3.png)
-
----
-
-### 4. Transaction Result — Payment Complete
-> The success modal displays the transaction hash and a direct link to StellarExpert.
-
-![Payment Complete](./screenshot/s2.png)
-
----
-
-### 5. Verified on StellarExpert
-> The confirmed transaction on the Stellar Testnet block explorer, showing status, fee, ledger, and signers.
-
-![StellarExpert Confirmation](./screenshot/s1.png)
-
----
-
-### 6. Smart Contract Integration
-> Interact with the Counter smart contract directly from the dashboard, tracking increments and on-chain events.
-
-![Smart Contract Integration](./screenshot/s6.png)
+### Testing
+- **22 Rust unit tests** covering all contract functions, storage, events, and edge cases
+- **30 Vitest frontend tests** covering address validation, retry logic, event parsing, split calculations, localStorage
+- All tests run in CI
 
 ---
 
@@ -74,82 +50,94 @@ A clean, minimal, and fully functional **Stellar Testnet** wallet dashboard buil
 
 | Layer | Technology |
 |---|---|
-| Framework | [Vite](https://vitejs.dev) (vanilla JS) |
-| Wallet | Freighter API v6 & Albedo Integration |
-| Blockchain | [@stellar/stellar-sdk](https://www.npmjs.com/package/@stellar/stellar-sdk) v15 |
-| Network | Stellar Testnet (`horizon-testnet.stellar.org`) |
-| Styling | Vanilla CSS (Glassmorphism + Animated Gradients) |
-| Visualization | [Chart.js](https://www.chartjs.org/) |
-| Fonts | Inter + JetBrains Mono (Google Fonts) |
+| Frontend | Vite 8, Vanilla JS (ES Modules), Vanilla CSS |
+| Smart Contracts | Soroban SDK 25.x, Rust, WASM |
+| Wallet | Freighter Extension, Albedo Web Wallet |
+| Blockchain APIs | Horizon Testnet, Soroban RPC |
+| CI/CD | GitHub Actions |
+| Testing | Rust built-in tests, Vitest + jsdom |
+| Charting | Chart.js |
 
 ---
 
-## Setup — Run Locally
+## Getting Started
 
 ### Prerequisites
-- [Node.js](https://nodejs.org) v18 or higher
-- [Freighter Wallet](https://freighter.app) Chrome extension installed and set to **Testnet**
+- Node.js 18+
+- Rust + `cargo` (for contracts)
+- Stellar CLI (for deployment)
+- Freighter or Albedo wallet
 
-### Steps
+### Frontend Development
 
-**1. Clone the repository**
-```bash
-git clone https://github.com/sohamrpatil4220/Astra.git
-cd Astra
-```
-
-**2. Install dependencies**
 ```bash
 npm install
+npm run dev         # Start Vite dev server at http://localhost:5173
+npm test            # Run Vitest frontend tests
 ```
 
-**3. Start the development server**
+### Contract Development
+
 ```bash
-npm run dev
+# Run all Rust unit tests
+make test-contracts
+
+# Build WASM artifacts
+make build-contracts
+
+# Deploy to testnet (requires Stellar CLI + secret key)
+STELLAR_SECRET=S... make deploy-hello-world
+STELLAR_SECRET=S... HELLO_WORLD_CONTRACT=C... make deploy-escrow
 ```
 
-**4. Open in browser**
-```
-http://localhost:5173  (or next available port)
-```
+### All Commands
 
-**5. Connect Wallet**
-- Make sure Freighter is set to **Test Net** (not Mainnet)
-- Click **Connect Wallet** in the top-right corner
-- Approve the connection in the Freighter popup
-
-**6. Fund your account (first time)**
-- Click **"Request 10,000 Testnet XLM"** to use the Friendbot faucet
-- Your balance will appear within a few seconds
-
----
-
-## Project Structure
-
-```text
-Astra/
-├── index.html          # Main HTML shell, layouts & templates
-├── src/
-│   ├── main.js         # Core application logic (Wallet, Transactions, UI)
-│   └── style.css       # Dynamic Glassmorphism Design System
-├── public/
-│   └── favicon.svg
-├── contract/           # Rust Soroban Smart Contracts
-├── screenshot/         # App screenshots (s1–s6)
-├── vite.config.js      # Vite + Node polyfills config
-└── package.json
+```bash
+make help           # Show all available commands
+make dev            # Start Vite dev server
+make build          # Build production bundle
+make test-frontend  # Run Vitest tests
+make test-contracts # Run Rust tests
+make lint-contracts # Run cargo clippy + fmt check
+make clean          # Remove build artifacts
 ```
 
 ---
 
-## Notes
+## Project Architecture
 
-- This app runs **exclusively on the Stellar Testnet** — no real funds are used.
-- Your wallet session is saved in `localStorage` so you stay connected on reload.
-- The `node_modules/`, `dist/`, and compiled wasm targets are excluded from the repository.
+See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for full system design documentation, including:
+- Data flow diagrams
+- Contract function reference
+- Frontend state management
+- CI/CD pipeline details
+- Design system tokens
+- Security considerations
+
+---
+
+## Smart Contract Portal
+
+The **Contracts** tab in the dashboard provides:
+1. **Counter State** — read `get_count()` in real time, call `increment()` or `batch_increment(N)`
+2. **Hello Greeting** — invoke `hello(to)` and see the return value
+3. **Persistent Storage** — `store_message(key, value)` and `get_message(key)` 
+4. **Live Event Feed** — real-time display of all contract events since last poll
+
+---
+
+## Wallet Support
+
+| Feature | Freighter | Albedo |
+|---|---|---|
+| Connect | ✅ | ✅ |
+| Sign XLM transfer | ✅ | ✅ |
+| Sign Soroban tx | ✅ | ✅ |
+| Multi-op split | ✅ | ✅ |
+| Trustline | ✅ | ✅ |
 
 ---
 
 ## License
 
-MIT — free to use, fork, and build upon.
+MIT © 2025 ASTRA

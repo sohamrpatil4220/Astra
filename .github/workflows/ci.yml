@@ -1,0 +1,147 @@
+name: CI — Build, Lint & Test
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 1: Lint Rust contracts
+  # ─────────────────────────────────────────────────────────────────────────────
+  contract-lint:
+    name: Lint Contracts (clippy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: clippy, rustfmt
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contract/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('contract/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Run clippy on contracts
+        working-directory: contract
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Check formatting
+        working-directory: contract
+        run: cargo fmt --all -- --check
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 2: Test Rust contracts
+  # ─────────────────────────────────────────────────────────────────────────────
+  contract-test:
+    name: Test Contracts
+    runs-on: ubuntu-latest
+    needs: contract-lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contract/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('contract/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Run all contract unit tests
+        working-directory: contract
+        run: cargo test --all
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 3: Build WASM artifacts
+  # ─────────────────────────────────────────────────────────────────────────────
+  contract-build:
+    name: Build Contract WASMs
+    runs-on: ubuntu-latest
+    needs: contract-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contract/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('contract/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Build hello-world WASM (release)
+        working-directory: contract
+        run: cargo build --release --target wasm32-unknown-unknown -p hello-world
+
+      - name: Build escrow WASM (release)
+        working-directory: contract
+        run: cargo build --release --target wasm32-unknown-unknown -p escrow
+
+      - name: Upload WASM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-wasms
+          path: |
+            contract/target/wasm32-unknown-unknown/release/hello_world.wasm
+            contract/target/wasm32-unknown-unknown/release/escrow.wasm
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 4: Frontend build & test
+  # ─────────────────────────────────────────────────────────────────────────────
+  frontend-build:
+    name: Frontend Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run frontend tests
+        run: npm test
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+          retention-days: 7

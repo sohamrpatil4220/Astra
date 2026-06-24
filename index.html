@@ -263,11 +263,11 @@
                 
                 <!-- Panel 3: Soroban Smart Contract Portal -->
                 <div id="contract-panel" class="tab-panel hidden">
-                  <p class="section-subtext">Interact with the deployed smart contract on Stellar Testnet.</p>
+                  <p class="section-subtext">Interact with the deployed Soroban smart contract — write, read, and stream real-time events.</p>
                   
                   <div class="contract-id-banner">
                     <span class="label">Contract ID</span>
-                    <span class="value font-mono select-all">CCAWAIPBTTQBLKUQW4VT5OBPSZ3GLOS77B3PM4RR4RAJAI7TQOIXZZHR</span>
+                    <span class="value font-mono select-all">CCMXLVDPY6IBFRHCYDTRAVKOVL4Z4RBL32SBDVYLYNRVRRGUYTVMMDM6</span>
                   </div>
 
                   <!-- Section A: Counter (Read/Write) -->
@@ -284,14 +284,29 @@
                         </button>
                       </div>
                     </div>
-                    <button type="button" id="counter-increment-btn" class="btn btn-primary btn-full" style="margin-top: 10px;">
-                      Increment Counter (+1)
-                    </button>
+                    <div style="display: flex; gap: 0.625rem; margin-top: 10px;">
+                      <button type="button" id="counter-increment-btn" class="btn btn-primary" style="flex: 1;">
+                        Increment (+1)
+                      </button>
+                    </div>
                   </div>
 
                   <div class="divider"></div>
 
-                  <!-- Section B: Hello World (Read-only) -->
+                  <!-- Section B: Batch Increment -->
+                  <div class="contract-section">
+                    <h3 class="section-title">Batch Increment</h3>
+                    <form id="batch-increment-form" autocomplete="off">
+                      <div class="form-row" style="gap: 0.625rem;">
+                        <input type="number" id="batch-steps-input" placeholder="Steps (1-100)" min="1" max="100" value="5" style="flex: 1;" />
+                        <button type="submit" id="batch-increment-btn" class="btn btn-secondary">Batch Increment</button>
+                      </div>
+                    </form>
+                  </div>
+
+                  <div class="divider"></div>
+
+                  <!-- Section C: Hello World (Read-only) -->
                   <div class="contract-section">
                     <h3 class="section-title">Hello Greeting Call</h3>
                     <form id="contract-form" autocomplete="off">
@@ -314,7 +329,38 @@
 
                   <div class="divider"></div>
 
-                  <!-- Section C: Real-Time Event Log -->
+                  <!-- Section D: Store Message -->
+                  <div class="contract-section">
+                    <h3 class="section-title">Store Message (Persistent Storage)</h3>
+                    <form id="store-message-form" autocomplete="off">
+                      <div class="form-row" style="gap: 0.625rem; margin-bottom: 0.625rem;">
+                        <input type="text" id="msg-key-input" placeholder="Key (e.g. name)" required style="flex: 1;" />
+                        <input type="text" id="msg-val-input" placeholder="Value" required style="flex: 1;" />
+                      </div>
+                      <button type="submit" id="store-msg-btn" class="btn btn-secondary btn-full">Store Message</button>
+                    </form>
+                  </div>
+
+                  <div class="divider"></div>
+
+                  <!-- Section E: Get Message -->
+                  <div class="contract-section">
+                    <h3 class="section-title">Get Message (Read-only)</h3>
+                    <form id="get-message-form" autocomplete="off">
+                      <div class="form-row" style="gap: 0.625rem;">
+                        <input type="text" id="get-msg-key-input" placeholder="Key to look up" required style="flex: 1;" />
+                        <button type="submit" class="btn btn-secondary">Get</button>
+                      </div>
+                    </form>
+                    <div class="message-result-box" style="margin-top: 0.625rem;">
+                      <span class="message-result-label">Result</span>
+                      <span id="get-msg-result">—</span>
+                    </div>
+                  </div>
+
+                  <div class="divider"></div>
+
+                  <!-- Section F: Real-Time Event Log -->
                   <div class="contract-section">
                     <div class="label-row-action" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                       <h3 class="section-title">Real-Time Event Listener</h3>

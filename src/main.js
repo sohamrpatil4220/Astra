@@ -19,7 +19,6 @@ function isValidStellarAddress(address) {
 const HORIZON_URL = 'https://horizon-testnet.stellar.org';
 const server = new Horizon.Server(HORIZON_URL);
 
-// State Variables
 let userAddress = null;
 let currentBalance = 0.0;
 let balancePollInterval = null;
@@ -29,7 +28,14 @@ let paymentStreamCloser = null;
 let splitRecipients = [];
 let activeWallet = 'freighter';
 const CONTRACT_ID = 'CCMXLVDPY6IBFRHCYDTRAVKOVL4Z4RBL32SBDVYLYNRVRRGUYTVMMDM6';
+const ESCROW_CONTRACT_ID = null; // Set after deploying escrow contract
 const rpcServer = new rpc.Server('https://soroban-testnet.stellar.org');
+
+// Event polling state
+let eventPollInterval = null;
+let lastLedgerPolled = 0;
+let capturedEvents = [];
+
 
 // DOM Elements - Header & Layout
 const connectBtn = document.getElementById('connect-btn');
@@ -1622,3 +1628,580 @@ async function handleTrustline(e) {
     trustSubmitBtn.textContent = 'Create Trustline';
   }
 }
+
+// ==========================================
+// 15. Toast Notification System
+// ==========================================
+let toastContainer = null;
+
+function ensureToastContainer() {
+  if (!toastContainer) {
+    toastContainer = document.createElement('div');
+    toastContainer.id = 'toast-container';
+    toastContainer.className = 'toast-container';
+    document.body.appendChild(toastContainer);
+  }
+  return toastContainer;
+}
+
+/**
+ * Show a non-blocking toast notification.
+ * @param {string} message - The message to display
+ * @param {'success'|'error'|'info'|'warning'} type - Toast type
+ * @param {number} duration - Auto-dismiss in ms (0 = no auto-dismiss)
+ */
+function showToast(message, type = 'info', duration = 4000) {
+  const container = ensureToastContainer();
+  
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  
+  const icons = {
+    success: '✓',
+    error: '✕',
+    warning: '⚠',
+    info: 'ℹ',
+  };
+  
+  toast.innerHTML = `
+    <span class="toast-icon">${icons[type] || icons.info}</span>
+    <span class="toast-message">${message}</span>
+    <button class="toast-close" aria-label="Dismiss">×</button>
+  `;
+  
+  const close = toast.querySelector('.toast-close');
+  const dismiss = () => {
+    toast.classList.add('toast-exit');
+    setTimeout(() => toast.remove(), 300);
+  };
+  close.addEventListener('click', dismiss);
+  
+  container.appendChild(toast);
+  
+  // Trigger entrance animation
+  requestAnimationFrame(() => toast.classList.add('toast-enter'));
+  
+  if (duration > 0) {
+    setTimeout(dismiss, duration);
+  }
+  
+  return { dismiss };
+}
+
+// ==========================================
+// 16. Retry with Exponential Backoff
+// ==========================================
+/**
+ * Retries an async function with exponential backoff.
+ * @param {Function} fn - Async function to retry
+ * @param {number} maxAttempts - Max retry attempts (default 3)
+ * @param {number} baseDelayMs - Base delay between retries (default 500ms)
+ */
+async function withRetry(fn, maxAttempts = 3, baseDelayMs = 500) {
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (attempt < maxAttempts) {
+        const delay = baseDelayMs * Math.pow(2, attempt - 1);
+        console.warn(`[Retry] Attempt ${attempt} failed: ${err.message}. Retrying in ${delay}ms...`);
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
+  }
+  throw lastError;
+}
+
+// ==========================================
+// 17. Global Error Boundary
+// ==========================================
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('[Global] Unhandled promise rejection:', event.reason);
+  const msg = event.reason?.message || String(event.reason) || 'An unexpected error occurred.';
+  
+  // Don't show toast for user-cancelled wallet actions
+  if (
+    msg.toLowerCase().includes('user rejected') ||
+    msg.toLowerCase().includes('declined') ||
+    msg.toLowerCase().includes('cancelled')
+  ) {
+    return;
+  }
+  
+  showToast(`Unexpected error: ${msg}`, 'error', 6000);
+  event.preventDefault();
+});
+
+window.addEventListener('error', (event) => {
+  console.error('[Global] Uncaught error:', event.error);
+  // Only show toast for non-network errors
+  if (event.error && !event.error.message?.includes('network')) {
+    showToast(`Script error: ${event.error.message}`, 'error', 6000);
+  }
+});
+
+// ==========================================
+// 18. Soroban Contract Event Streaming (getEvents RPC)
+// ==========================================
+
+/** Renders the captured events list in the UI */
+function renderContractEvents() {
+  const eventsList = document.getElementById('contract-events-list');
+  if (!eventsList) return;
+  
+  if (capturedEvents.length === 0) {
+    eventsList.innerHTML = '<li class="events-empty-state">No events captured yet. Call increment() to emit an event.</li>';
+    return;
+  }
+  
+  eventsList.innerHTML = '';
+  // Show newest first
+  [...capturedEvents].reverse().forEach(ev => {
+    const li = document.createElement('li');
+    li.className = 'event-log-item';
+    
+    const topicStr = Array.isArray(ev.topic) ? ev.topic.join(' / ') : String(ev.topic);
+    const dataStr = ev.data !== undefined ? String(ev.data) : '—';
+    
+    li.innerHTML = `
+      <div class="event-item-header">
+        <span class="event-topic-badge">${topicStr}</span>
+        <span class="event-ledger">Ledger #${ev.ledger}</span>
+      </div>
+      <div class="event-item-data">
+        <span class="event-data-label">data:</span>
+        <span class="event-data-val font-mono">${dataStr}</span>
+      </div>
+    `;
+    eventsList.appendChild(li);
+  });
+  
+  // Auto-scroll to top (newest)
+  eventsList.scrollTop = 0;
+}
+
+/** Fetches new contract events since lastLedgerPolled using Soroban RPC */
+async function pollContractEvents() {
+  if (!CONTRACT_ID) return;
+  
+  try {
+    const ledgerInfo = await withRetry(() => rpcServer.getLatestLedger(), 2, 300);
+    const currentLedger = ledgerInfo.sequence;
+    
+    if (lastLedgerPolled === 0) {
+      // First poll: look back ~50 ledgers (~4 minutes)
+      lastLedgerPolled = Math.max(currentLedger - 50, 1);
+    }
+    
+    if (currentLedger <= lastLedgerPolled) return;
+    
+    const eventsResponse = await withRetry(() => rpcServer.getEvents({
+      startLedger: lastLedgerPolled,
+      filters: [
+        {
+          type: 'contract',
+          contractIds: [CONTRACT_ID],
+        },
+      ],
+      limit: 20,
+    }), 2, 300);
+    
+    lastLedgerPolled = currentLedger;
+    
+    if (eventsResponse && eventsResponse.events && eventsResponse.events.length > 0) {
+      eventsResponse.events.forEach(ev => {
+        // Deduplicate by id
+        const exists = capturedEvents.some(ce => ce.id === ev.id);
+        if (!exists) {
+          let topicLabels = [];
+          let dataVal = '—';
+          
+          try {
+            topicLabels = (ev.topic || []).map(t => {
+              const native = scValToNative(t);
+              return String(native);
+            });
+          } catch { topicLabels = ['event']; }
+          
+          try {
+            if (ev.value) {
+              dataVal = String(scValToNative(ev.value));
+            }
+          } catch { dataVal = '(raw)'; }
+          
+          capturedEvents.push({
+            id: ev.id || `${ev.ledger}-${Math.random()}`,
+            ledger: ev.ledger,
+            topic: topicLabels,
+            data: dataVal,
+          });
+          
+          // Keep last 50 events
+          if (capturedEvents.length > 50) capturedEvents.shift();
+          
+          // Show a toast for the new event
+          const topicStr = topicLabels.join('/');
+          showToast(`📡 Contract event: ${topicStr} = ${dataVal}`, 'info', 3000);
+        }
+      });
+      
+      renderContractEvents();
+    }
+  } catch (err) {
+    // Silently ignore polling errors (network may be temporarily unavailable)
+    console.warn('[EventPoll] Failed to fetch events:', err.message);
+  }
+}
+
+/** Start polling for contract events every 5 seconds */
+function startEventPolling() {
+  stopEventPolling();
+  lastLedgerPolled = 0;
+  pollContractEvents(); // Immediate first fetch
+  eventPollInterval = setInterval(pollContractEvents, 5000);
+}
+
+/** Stop event polling */
+function stopEventPolling() {
+  if (eventPollInterval) {
+    clearInterval(eventPollInterval);
+    eventPollInterval = null;
+  }
+}
+
+// ==========================================
+// 19. Advanced Contract Functions
+// ==========================================
+
+/** Skeleton loading state for the counter display */
+function setCounterSkeleton(loading) {
+  const countEl = document.getElementById('counter-value');
+  if (!countEl) return;
+  if (loading) {
+    countEl.textContent = '…';
+    countEl.classList.add('skeleton-text');
+  } else {
+    countEl.classList.remove('skeleton-text');
+  }
+}
+
+/** Read-only query: get_count() via simulation (no wallet needed) */
+async function handleGetCount() {
+  const countEl = document.getElementById('counter-value');
+  const refreshBtn = document.getElementById('counter-refresh-btn');
+  if (!countEl) return;
+  
+  setCounterSkeleton(true);
+  if (refreshBtn) refreshBtn.disabled = true;
+  
+  try {
+    const contract = new Contract(CONTRACT_ID);
+    
+    // Use a dummy source account for simulation (no auth needed for read)
+    // If user is connected, use their account; otherwise use a well-known testnet account
+    const sourceKey = userAddress || 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
+    
+    let sourceAccount;
+    try {
+      sourceAccount = await withRetry(() => server.loadAccount(sourceKey), 2, 500);
+    } catch {
+      countEl.textContent = '?';
+      setCounterSkeleton(false);
+      return;
+    }
+    
+    const tx = new TransactionBuilder(sourceAccount, {
+      fee: '100',
+      networkPassphrase: Networks.TESTNET,
+    })
+      .addOperation(contract.call('get_count'))
+      .setTimeout(30)
+      .build();
+    
+    const simResponse = await withRetry(
+      () => rpcServer.simulateTransaction(tx),
+      2, 500
+    );
+    
+    if (!rpc.Api.isSimulationError(simResponse) && simResponse.result?.retval) {
+      const native = scValToNative(simResponse.result.retval);
+      countEl.textContent = String(native);
+    } else {
+      countEl.textContent = '?';
+    }
+  } catch (err) {
+    console.warn('[getCount] Failed:', err.message);
+    countEl.textContent = 'N/A';
+  } finally {
+    setCounterSkeleton(false);
+    if (refreshBtn) refreshBtn.disabled = false;
+  }
+}
+
+/** Write transaction: increment() */
+async function handleIncrementCounter() {
+  if (!userAddress) {
+    showToast('Connect your wallet to call increment()', 'warning');
+    return;
+  }
+  
+  const btn = document.getElementById('counter-increment-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Simulating…'; }
+  
+  try {
+    const contract = new Contract(CONTRACT_ID);
+    const sourceAccount = await withRetry(
+      () => server.loadAccount(userAddress), 3, 500
+    );
+    
+    const tx = new TransactionBuilder(sourceAccount, {
+      fee: '100',
+      networkPassphrase: Networks.TESTNET,
+    })
+      .addOperation(contract.call('increment'))
+      .setTimeout(60)
+      .build();
+    
+    if (btn) btn.textContent = 'Simulating…';
+    const simResponse = await withRetry(
+      () => rpcServer.simulateTransaction(tx), 2, 500
+    );
+    
+    if (rpc.Api.isSimulationError(simResponse)) {
+      throw new Error(simResponse.error || 'Simulation failed');
+    }
+    
+    const assembledTx = rpc.assembleTransaction(tx, simResponse).build();
+    
+    if (btn) btn.textContent = 'Sign in wallet…';
+    const signedXdr = await signTxEnvelope(assembledTx.toXDR());
+    
+    if (btn) btn.textContent = 'Submitting…';
+    const txToSubmit = TransactionBuilder.fromXDR(signedXdr, Networks.TESTNET);
+    const submitResult = await withRetry(
+      () => server.submitTransaction(txToSubmit), 2, 1000
+    );
+    
+    // Parse return value
+    let newCount = '?';
+    if (simResponse.result?.retval) {
+      try { newCount = String(scValToNative(simResponse.result.retval)); } catch {}
+    }
+    
+    const countEl = document.getElementById('counter-value');
+    if (countEl) countEl.textContent = newCount;
+    
+    showToast(`✅ Counter incremented! New value: ${newCount}`, 'success');
+    
+    // Trigger event polling immediately
+    setTimeout(pollContractEvents, 1000);
+    
+  } catch (err) {
+    console.error('[increment] Failed:', err);
+    showToast(`Increment failed: ${err.message}`, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Increment Counter (+1)'; }
+  }
+}
+
+/** Write transaction: batch_increment(steps) */
+async function handleBatchIncrement(steps) {
+  if (!userAddress) {
+    showToast('Connect your wallet to call batch_increment()', 'warning');
+    return;
+  }
+  if (!steps || steps < 1 || steps > 100) {
+    showToast('Batch steps must be between 1 and 100', 'warning');
+    return;
+  }
+  
+  const btn = document.getElementById('batch-increment-btn');
+  if (btn) { btn.disabled = true; btn.textContent = `Batching ${steps} steps…`; }
+  
+  try {
+    const contract = new Contract(CONTRACT_ID);
+    const sourceAccount = await withRetry(() => server.loadAccount(userAddress), 3, 500);
+    
+    const stepsArg = xdr.ScVal.scvU32(parseInt(steps));
+    const tx = new TransactionBuilder(sourceAccount, {
+      fee: '100',
+      networkPassphrase: Networks.TESTNET,
+    })
+      .addOperation(contract.call('batch_increment', stepsArg))
+      .setTimeout(60)
+      .build();
+    
+    const simResponse = await withRetry(() => rpcServer.simulateTransaction(tx), 2, 500);
+    if (rpc.Api.isSimulationError(simResponse)) throw new Error(simResponse.error);
+    
+    const assembledTx = rpc.assembleTransaction(tx, simResponse).build();
+    const signedXdr = await signTxEnvelope(assembledTx.toXDR());
+    const txToSubmit = TransactionBuilder.fromXDR(signedXdr, Networks.TESTNET);
+    await server.submitTransaction(txToSubmit);
+    
+    let result = null;
+    if (simResponse.result?.retval) {
+      try { result = scValToNative(simResponse.result.retval); } catch {}
+    }
+    
+    const endCount = result?.end_count ?? '?';
+    const countEl = document.getElementById('counter-value');
+    if (countEl) countEl.textContent = String(endCount);
+    
+    showToast(`✅ Batch: ${steps} steps → counter = ${endCount}`, 'success');
+    setTimeout(pollContractEvents, 1000);
+    
+  } catch (err) {
+    showToast(`Batch increment failed: ${err.message}`, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Batch Increment'; }
+  }
+}
+
+/** Write transaction: store_message(key, value) */
+async function handleStoreMessage(key, value) {
+  if (!userAddress) {
+    showToast('Connect your wallet to store a message', 'warning');
+    return;
+  }
+  
+  const btn = document.getElementById('store-msg-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Storing…'; }
+  
+  try {
+    const contract = new Contract(CONTRACT_ID);
+    const sourceAccount = await withRetry(() => server.loadAccount(userAddress), 3, 500);
+    
+    const keyArg = xdr.ScVal.scvString(key);
+    const valArg = xdr.ScVal.scvString(value);
+    
+    const tx = new TransactionBuilder(sourceAccount, {
+      fee: '100',
+      networkPassphrase: Networks.TESTNET,
+    })
+      .addOperation(contract.call('store_message', keyArg, valArg))
+      .setTimeout(60)
+      .build();
+    
+    const simResponse = await withRetry(() => rpcServer.simulateTransaction(tx), 2, 500);
+    if (rpc.Api.isSimulationError(simResponse)) throw new Error(simResponse.error);
+    
+    const assembledTx = rpc.assembleTransaction(tx, simResponse).build();
+    const signedXdr = await signTxEnvelope(assembledTx.toXDR());
+    const txToSubmit = TransactionBuilder.fromXDR(signedXdr, Networks.TESTNET);
+    await server.submitTransaction(txToSubmit);
+    
+    showToast(`✅ Message stored: "${key}" = "${value}"`, 'success');
+    setTimeout(pollContractEvents, 1000);
+    
+  } catch (err) {
+    showToast(`Store failed: ${err.message}`, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Store Message'; }
+  }
+}
+
+/** Read-only: get_message(key) via simulation */
+async function handleGetMessage(key) {
+  const resultEl = document.getElementById('get-msg-result');
+  if (resultEl) { resultEl.textContent = 'Loading…'; resultEl.classList.add('skeleton-text'); }
+  
+  try {
+    const contract = new Contract(CONTRACT_ID);
+    const sourceKey = userAddress || 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
+    const sourceAccount = await withRetry(() => server.loadAccount(sourceKey), 2, 500);
+    
+    const keyArg = xdr.ScVal.scvString(key);
+    const tx = new TransactionBuilder(sourceAccount, {
+      fee: '100',
+      networkPassphrase: Networks.TESTNET,
+    })
+      .addOperation(contract.call('get_message', keyArg))
+      .setTimeout(30)
+      .build();
+    
+    const simResponse = await withRetry(() => rpcServer.simulateTransaction(tx), 2, 500);
+    
+    if (!rpc.Api.isSimulationError(simResponse) && simResponse.result?.retval) {
+      const native = scValToNative(simResponse.result.retval);
+      if (resultEl) { resultEl.textContent = String(native) || '(empty)'; }
+    } else {
+      if (resultEl) resultEl.textContent = '(not found)';
+    }
+  } catch (err) {
+    if (resultEl) resultEl.textContent = `Error: ${err.message}`;
+  } finally {
+    if (resultEl) resultEl.classList.remove('skeleton-text');
+  }
+}
+
+// ==========================================
+// 20. Contract Portal Event Wiring
+// ==========================================
+window.addEventListener('DOMContentLoaded', () => {
+  // Wire up counter refresh button
+  const counterRefreshBtn = document.getElementById('counter-refresh-btn');
+  if (counterRefreshBtn) {
+    counterRefreshBtn.addEventListener('click', () => {
+      const icon = document.getElementById('counter-refresh-icon');
+      if (icon) {
+        icon.style.transition = 'transform 0.5s ease';
+        icon.style.transform = 'rotate(360deg)';
+        setTimeout(() => { icon.style.transition = ''; icon.style.transform = ''; }, 500);
+      }
+      handleGetCount();
+    });
+  }
+  
+  // Wire up increment button
+  const incrementBtn = document.getElementById('counter-increment-btn');
+  if (incrementBtn) {
+    incrementBtn.addEventListener('click', handleIncrementCounter);
+  }
+  
+  // Wire up batch increment (if form exists)
+  const batchForm = document.getElementById('batch-increment-form');
+  if (batchForm) {
+    batchForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const stepsInput = document.getElementById('batch-steps-input');
+      handleBatchIncrement(parseInt(stepsInput?.value || '5'));
+    });
+  }
+  
+  // Wire up store message form
+  const storeMsgForm = document.getElementById('store-message-form');
+  if (storeMsgForm) {
+    storeMsgForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const key = document.getElementById('msg-key-input')?.value.trim();
+      const val = document.getElementById('msg-val-input')?.value.trim();
+      if (key && val) handleStoreMessage(key, val);
+    });
+  }
+  
+  // Wire up get message form
+  const getMsgForm = document.getElementById('get-message-form');
+  if (getMsgForm) {
+    getMsgForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const key = document.getElementById('get-msg-key-input')?.value.trim();
+      if (key) handleGetMessage(key);
+    });
+  }
+  
+  // Start event polling when contract panel becomes active
+  const contractTabBtn = document.querySelector('[data-tab="contract-panel"]');
+  if (contractTabBtn) {
+    contractTabBtn.addEventListener('click', () => {
+      startEventPolling();
+      handleGetCount();
+    });
+  }
+});
+
+// Re-export utility for tests (tree-shaken in production)
+export { withRetry, showToast };
+
