@@ -11,18 +11,18 @@
 //! 4. Anyone can query `get_deposit_count()` which cross-calls `counter.get_count()`.
 
 #![no_std]
+#![allow(deprecated)]
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short,
-    Address, Env, IntoVal, Symbol,
+    contract, contractimpl, contracttype, symbol_short, Address, Env, Symbol,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Storage Keys
 // ─────────────────────────────────────────────────────────────────────────────
 const COUNTER_ADDR: Symbol = symbol_short!("CNTRADDR");
-const ADMIN_KEY:    Symbol = symbol_short!("ADMIN");
-const BALANCE_KEY:  Symbol = symbol_short!("BALANCE");
+const ADMIN_KEY: Symbol = symbol_short!("ADMIN");
+const BALANCE_KEY: Symbol = symbol_short!("BALANCE");
 const DEPOSITOR_KEY: Symbol = symbol_short!("DEPOSITOR");
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -31,10 +31,10 @@ const DEPOSITOR_KEY: Symbol = symbol_short!("DEPOSITOR");
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EscrowInfo {
-    pub admin:           Address,
+    pub admin: Address,
     pub counter_contract: Address,
     pub balance_stroops: i128,
-    pub deposit_count:   u32,
+    pub deposit_count: u32,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -57,13 +57,13 @@ impl EscrowContract {
         admin.require_auth();
 
         env.storage().instance().set(&ADMIN_KEY, &admin);
-        env.storage().instance().set(&COUNTER_ADDR, &counter_contract);
+        env.storage()
+            .instance()
+            .set(&COUNTER_ADDR, &counter_contract);
         env.storage().instance().set(&BALANCE_KEY, &0i128);
 
-        env.events().publish(
-            (symbol_short!("escrow"), symbol_short!("init")),
-            admin,
-        );
+        env.events()
+            .publish((symbol_short!("escrow"), symbol_short!("init")), admin);
     }
 
     // ── deposit ───────────────────────────────────────────────────────────────
@@ -77,11 +77,7 @@ impl EscrowContract {
         }
 
         // Accumulate balance
-        let current: i128 = env
-            .storage()
-            .instance()
-            .get(&BALANCE_KEY)
-            .unwrap_or(0);
+        let current: i128 = env.storage().instance().get(&BALANCE_KEY).unwrap_or(0);
         env.storage()
             .instance()
             .set(&BALANCE_KEY, &(current + amount_stroops));
@@ -96,8 +92,11 @@ impl EscrowContract {
             .get(&COUNTER_ADDR)
             .expect("Counter contract not set — call initialize() first");
 
-        let new_count: u32 = env
-            .invoke_contract(&counter_id, &symbol_short!("increment"), soroban_sdk::vec![&env]);
+        let new_count: u32 = env.invoke_contract(
+            &counter_id,
+            &symbol_short!("increment"),
+            soroban_sdk::vec![&env],
+        );
 
         // Emit escrow deposit event
         env.events().publish(
@@ -120,11 +119,7 @@ impl EscrowContract {
             .expect("Not initialized");
         admin.require_auth();
 
-        let balance: i128 = env
-            .storage()
-            .instance()
-            .get(&BALANCE_KEY)
-            .unwrap_or(0);
+        let balance: i128 = env.storage().instance().get(&BALANCE_KEY).unwrap_or(0);
 
         if balance == 0 {
             panic!("No funds in escrow");
@@ -144,10 +139,7 @@ impl EscrowContract {
     // ── get_balance ───────────────────────────────────────────────────────────
     /// Returns the currently locked balance in stroops.
     pub fn get_balance(env: Env) -> i128 {
-        env.storage()
-            .instance()
-            .get(&BALANCE_KEY)
-            .unwrap_or(0)
+        env.storage().instance().get(&BALANCE_KEY).unwrap_or(0)
     }
 
     // ── get_deposit_count ─────────────────────────────────────────────────────
@@ -182,11 +174,7 @@ impl EscrowContract {
             .instance()
             .get(&COUNTER_ADDR)
             .expect("Not initialized");
-        let balance_stroops: i128 = env
-            .storage()
-            .instance()
-            .get(&BALANCE_KEY)
-            .unwrap_or(0);
+        let balance_stroops: i128 = env.storage().instance().get(&BALANCE_KEY).unwrap_or(0);
         let deposit_count: u32 = env.invoke_contract(
             &counter_contract,
             &symbol_short!("get_count"),

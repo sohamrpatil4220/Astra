@@ -172,14 +172,8 @@ fn test_store_message_overwrites_existing() {
 #[test]
 fn test_store_multiple_keys() {
     let (env, client) = setup();
-    client.store_message(
-        &String::from_str(&env, "k1"),
-        &String::from_str(&env, "v1"),
-    );
-    client.store_message(
-        &String::from_str(&env, "k2"),
-        &String::from_str(&env, "v2"),
-    );
+    client.store_message(&String::from_str(&env, "k1"), &String::from_str(&env, "v1"));
+    client.store_message(&String::from_str(&env, "k2"), &String::from_str(&env, "v2"));
     assert_eq!(
         client.get_message(&String::from_str(&env, "k1")),
         String::from_str(&env, "v1")
@@ -203,14 +197,8 @@ fn test_list_messages_empty() {
 #[test]
 fn test_list_messages_returns_all() {
     let (env, client) = setup();
-    client.store_message(
-        &String::from_str(&env, "a"),
-        &String::from_str(&env, "1"),
-    );
-    client.store_message(
-        &String::from_str(&env, "b"),
-        &String::from_str(&env, "2"),
-    );
+    client.store_message(&String::from_str(&env, "a"), &String::from_str(&env, "1"));
+    client.store_message(&String::from_str(&env, "b"), &String::from_str(&env, "2"));
     let records = client.list_messages();
     assert_eq!(records.len(), 2);
 }

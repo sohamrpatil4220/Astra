@@ -55,12 +55,12 @@ test-frontend:
 # ─────────────────────────────────────────────────────────────────────────────
 build-contracts:
 	@echo "Building hello-world WASM..."
-	cd contract && cargo build --release --target wasm32-unknown-unknown -p hello-world
+	cd contract && cargo build --release --target wasm32v1-none -p hello-world
 	@echo "Building escrow WASM..."
-	cd contract && cargo build --release --target wasm32-unknown-unknown -p escrow
+	cd contract && cargo build --release --target wasm32v1-none -p escrow
 	@echo ""
 	@echo "Build complete. WASMs:"
-	@ls -lh contract/target/wasm32-unknown-unknown/release/*.wasm 2>/dev/null || echo "  (no WASM files found)"
+	@ls -lh contract/target/wasm32v1-none/release/*.wasm 2>/dev/null || echo "  (no WASM files found)"
 
 test-contracts:
 	@echo "Running Soroban unit tests..."
@@ -86,7 +86,7 @@ deploy-hello-world: build-contracts
 	fi
 	@echo "Deploying hello-world contract to testnet..."
 	stellar contract deploy \
-		--wasm contract/target/wasm32-unknown-unknown/release/hello_world.wasm \
+		--wasm contract/target/wasm32v1-none/release/hello_world.wasm \
 		--source "$(STELLAR_SECRET)" \
 		--network testnet \
 		--alias hello-world
@@ -104,7 +104,7 @@ deploy-escrow: build-contracts
 	fi
 	@echo "Deploying escrow contract to testnet..."
 	stellar contract deploy \
-		--wasm contract/target/wasm32-unknown-unknown/release/escrow.wasm \
+		--wasm contract/target/wasm32v1-none/release/escrow.wasm \
 		--source "$(STELLAR_SECRET)" \
 		--network testnet \
 		--alias escrow

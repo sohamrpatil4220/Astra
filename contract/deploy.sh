@@ -6,7 +6,7 @@
 set -euo pipefail
 
 NETWORK="${NETWORK:-testnet}"
-WASM_DIR="$(dirname "$0")/target/wasm32-unknown-unknown/release"
+WASM_DIR="$(dirname "$0")/target/wasm32v1-none/release"
 HELLO_WORLD_WASM="$WASM_DIR/hello_world.wasm"
 ESCROW_WASM="$WASM_DIR/escrow.wasm"
 
@@ -32,7 +32,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 # ── Step 1: Build contracts ──────────────────────────────────────────────────
 echo ""
 echo "📦  Building WASM artifacts..."
-cargo build --release --target wasm32-unknown-unknown \
+cargo build --release --target wasm32v1-none \
   --manifest-path "$(dirname "$0")/Cargo.toml" \
   -p hello-world -p escrow
 

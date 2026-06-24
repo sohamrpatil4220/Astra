@@ -23,7 +23,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-unknown-unknown
+          targets: wasm32v1-none
           components: clippy, rustfmt
 
       - name: Cache Cargo registry
@@ -35,6 +35,10 @@ jobs:
             contract/target
           key: cargo-${{ runner.os }}-${{ hashFiles('contract/Cargo.lock') }}
           restore-keys: cargo-${{ runner.os }}-
+
+      - name: Build hello-world dependency WASM
+        working-directory: contract
+        run: cargo build --release --target wasm32v1-none -p hello-world
 
       - name: Run clippy on contracts
         working-directory: contract
@@ -57,7 +61,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-unknown-unknown
+          targets: wasm32v1-none
 
       - name: Cache Cargo registry
         uses: actions/cache@v4
@@ -68,6 +72,10 @@ jobs:
             contract/target
           key: cargo-${{ runner.os }}-${{ hashFiles('contract/Cargo.lock') }}
           restore-keys: cargo-${{ runner.os }}-
+
+      - name: Build hello-world dependency WASM
+        working-directory: contract
+        run: cargo build --release --target wasm32v1-none -p hello-world
 
       - name: Run all contract unit tests
         working-directory: contract
@@ -86,7 +94,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-unknown-unknown
+          targets: wasm32v1-none
 
       - name: Cache Cargo registry
         uses: actions/cache@v4
@@ -100,19 +108,19 @@ jobs:
 
       - name: Build hello-world WASM (release)
         working-directory: contract
-        run: cargo build --release --target wasm32-unknown-unknown -p hello-world
+        run: cargo build --release --target wasm32v1-none -p hello-world
 
       - name: Build escrow WASM (release)
         working-directory: contract
-        run: cargo build --release --target wasm32-unknown-unknown -p escrow
+        run: cargo build --release --target wasm32v1-none -p escrow
 
       - name: Upload WASM artifacts
         uses: actions/upload-artifact@v4
         with:
           name: contract-wasms
           path: |
-            contract/target/wasm32-unknown-unknown/release/hello_world.wasm
-            contract/target/wasm32-unknown-unknown/release/escrow.wasm
+            contract/target/wasm32v1-none/release/hello_world.wasm
+            contract/target/wasm32v1-none/release/escrow.wasm
           retention-days: 7
 
   # ─────────────────────────────────────────────────────────────────────────────

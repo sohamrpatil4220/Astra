@@ -9,7 +9,7 @@ use soroban_sdk::{testutils::Address as _, Address, Env};
 // for cross-contract invocation tests.
 mod hello_world {
     soroban_sdk::contractimport!(
-        file = "../../target/wasm32-unknown-unknown/release/hello_world.wasm"
+        file = "../../target/wasm32v1-none/release/hello_world.wasm"
     );
 }
 
@@ -17,10 +17,10 @@ mod hello_world {
 // Test setup helper
 // ─────────────────────────────────────────────────────────────────────────────
 struct TestSetup {
-    env:            Env,
-    escrow_client:  EscrowContractClient<'static>,
-    hello_id:       Address,
-    admin:          Address,
+    env: Env,
+    escrow_client: EscrowContractClient<'static>,
+    hello_id: Address,
+    admin: Address,
 }
 
 fn setup() -> TestSetup {

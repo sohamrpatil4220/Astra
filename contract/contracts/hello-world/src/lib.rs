@@ -1,7 +1,7 @@
 #![no_std]
+#![allow(deprecated)]
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short,
-    vec, Env, String, Symbol, Vec, Map,
+    contract, contractimpl, contracttype, symbol_short, vec, Env, Map, String, Symbol, Vec,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -13,15 +13,15 @@ use soroban_sdk::{
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BatchResult {
     pub start_count: u32,
-    pub end_count:   u32,
-    pub steps:       u32,
+    pub end_count: u32,
+    pub steps: u32,
 }
 
 /// Structured type for stored messages
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MessageRecord {
-    pub key:   String,
+    pub key: String,
     pub value: String,
 }
 
@@ -83,11 +83,7 @@ impl HelloWorldContract {
     /// Increments the on-chain counter by 1.
     /// Emits a counter/increment event with the new count.
     pub fn increment(env: Env) -> u32 {
-        let mut count: u32 = env
-            .storage()
-            .instance()
-            .get(&COUNTER_KEY)
-            .unwrap_or(0);
+        let mut count: u32 = env.storage().instance().get(&COUNTER_KEY).unwrap_or(0);
         count += 1;
         env.storage().instance().set(&COUNTER_KEY, &count);
 
@@ -101,10 +97,7 @@ impl HelloWorldContract {
     // ── 3. get_count ──────────────────────────────────────────────────────────
     /// Returns the current counter value without modifying state.
     pub fn get_count(env: Env) -> u32 {
-        env.storage()
-            .instance()
-            .get(&COUNTER_KEY)
-            .unwrap_or(0)
+        env.storage().instance().get(&COUNTER_KEY).unwrap_or(0)
     }
 
     // ── 4. batch_increment ────────────────────────────────────────────────────
@@ -112,19 +105,13 @@ impl HelloWorldContract {
     /// Emits a batch event per step, plus a batchDone summary event.
     /// Returns a `BatchResult` struct.
     pub fn batch_increment(env: Env, steps: u32) -> BatchResult {
-        let start: u32 = env
-            .storage()
-            .instance()
-            .get(&COUNTER_KEY)
-            .unwrap_or(0);
+        let start: u32 = env.storage().instance().get(&COUNTER_KEY).unwrap_or(0);
 
         let mut count = start;
         for _ in 0..steps {
             count += 1;
-            env.events().publish(
-                (symbol_short!("counter"), symbol_short!("batch")),
-                count,
-            );
+            env.events()
+                .publish((symbol_short!("counter"), symbol_short!("batch")), count);
         }
 
         env.storage().instance().set(&COUNTER_KEY, &count);
@@ -136,7 +123,7 @@ impl HelloWorldContract {
 
         BatchResult {
             start_count: start,
-            end_count:   count,
+            end_count: count,
             steps,
         }
     }
@@ -154,10 +141,8 @@ impl HelloWorldContract {
         map.set(key.clone(), value);
         env.storage().instance().set(&MSG_MAP_KEY, &map);
 
-        env.events().publish(
-            (symbol_short!("message"), symbol_short!("stored")),
-            key,
-        );
+        env.events()
+            .publish((symbol_short!("message"), symbol_short!("stored")), key);
     }
 
     // ── 6. get_message ────────────────────────────────────────────────────────
@@ -193,10 +178,8 @@ impl HelloWorldContract {
     /// Resets the counter to zero and emits a counter/reset event.
     pub fn reset(env: Env) {
         env.storage().instance().set(&COUNTER_KEY, &0u32);
-        env.events().publish(
-            (symbol_short!("counter"), symbol_short!("reset")),
-            0u32,
-        );
+        env.events()
+            .publish((symbol_short!("counter"), symbol_short!("reset")), 0u32);
     }
 }
 
